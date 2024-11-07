@@ -1,0 +1,13 @@
+[package]
+name = "kudrive-client"
+version = "0.1.0"
+edition = "2021"
+default-run = "kudrive-client"
+
+[dependencies]
+kudrive-common = { path = "../common" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+

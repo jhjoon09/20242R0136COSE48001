@@ -1,0 +1,16 @@
+[package]
+name = "kudrive-server"
+version = "0.1.0"
+edition = "2021"
+default-run = "kudrive-server"
+
+[dependencies]
+kudrive-common = { path = "../common" }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[workspace.metadata]
+license = "MIT"
+license-file = "LICENSE"
