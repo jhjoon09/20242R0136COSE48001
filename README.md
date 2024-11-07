@@ -26,8 +26,13 @@
 ### Build
 
 ```bash
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Clone repo
 git clone https://github.com/{}/20242R0136COSE48001 kudrive
 cd kudrive
+
 # Install dependency for all
 cargo build
 
