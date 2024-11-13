@@ -68,3 +68,19 @@ cargo watch -x 'run --bin kudrive-client'
 cargo fmt
 cargo watch -x fmt -x 'run --bin kudrive-client'
 ```
+
+## Cross-Compile Notes
+
+### Supported Architecture
+
+- `x86_64-unknown-linux-gnu`
+- `x86_64-pc-windows-gnu`
+
+### Build
+
+```bash
+# supported arch : https://doc.rust-lang.org/nightly/rustc/platform-support.html
+export TARGET_ARCH="x86_64-unknown-linux-gnu"
+rustup target add $TARGET_ARCH
+cargo build --target=$TARGET_ARCH --bin kudrive-client
+```
