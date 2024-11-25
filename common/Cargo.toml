@@ -7,3 +7,5 @@ edition = "2021"
 async-trait = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+bytes = { workspace = true }
+tokio = { workspace = true }

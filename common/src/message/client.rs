@@ -6,17 +6,17 @@ use serde_json;
 use super::Message;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ServerMessage {
+pub enum ClientMessage {
     HealthCheck { timestamp: SystemTime },
 }
 
-impl Message for ServerMessage {
+impl Message for ClientMessage {
     fn from_bytes(bytes: &[u8]) -> Self {
         match serde_json::from_slice(bytes) {
             Ok(message) => message,
             Err(e) => {
                 eprintln!("Failed to parse JSON data: {:?}", e);
-                ServerMessage::HealthCheck {
+                ClientMessage::HealthCheck {
                     timestamp: SystemTime::now(),
                 }
             }

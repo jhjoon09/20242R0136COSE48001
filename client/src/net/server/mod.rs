@@ -1,17 +1,14 @@
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 
-use kudrive_common::ServerMessage;
+use kudrive_common::{Listener, ServerMessage};
 use tokio::io::{self, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, Mutex};
 
-mod listener;
-use listener::Listener;
-
 pub struct Server {
     stream: Option<Arc<Mutex<TcpStream>>>,
-    listener: Option<Listener>,
+    listener: Option<Listener<ServerMessage>>,
 }
 
 impl Server {

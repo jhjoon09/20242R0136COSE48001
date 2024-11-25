@@ -1,27 +1,32 @@
 use std::sync::Arc;
 
 use bytes::{Buf, BytesMut};
-use kudrive_common::ServerMessage;
 use tokio::io::{self};
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, Mutex};
 
-pub struct Listener {}
+use crate::message::Message;
 
-impl Listener {
-    pub fn spawn(stream: Arc<Mutex<TcpStream>>, sender: mpsc::Sender<ServerMessage>) -> Self {
+pub struct Listener<T: Message> {
+    _marker: std::marker::PhantomData<T>,
+}
+
+impl<T: Message> Listener<T> {
+    pub fn spawn(stream: Arc<Mutex<TcpStream>>, sender: mpsc::Sender<T>) -> Self {
         tokio::spawn(async move {
             if let Err(e) = handle_stream(stream, sender).await {
                 eprintln!("Failed to handle stream: {}", e);
             }
         });
-        Self {}
+        Self {
+            _marker: std::marker::PhantomData,
+        }
     }
 }
 
-async fn handle_stream(
+async fn handle_stream<T: Message>(
     stream: Arc<Mutex<TcpStream>>,
-    sender: mpsc::Sender<ServerMessage>,
+    sender: mpsc::Sender<T>,
 ) -> io::Result<()> {
     let mut buffer = BytesMut::new();
     let mut next: Option<usize> = None;
@@ -48,8 +53,7 @@ async fn handle_stream(
                 // enough to read next message
                 Some(len) if buffer.len() >= len => {
                     let data = buffer.split_to(len).freeze();
-                    let message = ServerMessage::from_bytes(&data);
-                    // TODO: handle received message
+                    let message = Message::from_bytes(&data);
                     if sender.send(message).await.is_err() {
                         eprintln!("Failed to send message to the receiver");
                     }
