@@ -25,6 +25,7 @@ impl Client {
         // self.file_server.start().await;
 
         let _ = self.server.connect().await;
+        self.server.spawn().await.unwrap();
 
         // self.p2p_transport.connect().await;
 
