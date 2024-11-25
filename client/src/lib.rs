@@ -21,16 +21,20 @@ impl Client {
         }
     }
 
-    pub async fn start(&self) {
-        self.file_server.start().await;
-        self.server.connect().await;
-        self.p2p_transport.connect().await;
+    pub async fn start(&mut self) {
+        // self.file_server.start().await;
+
+        let _ = self.server.connect().await;
+
+        // self.p2p_transport.connect().await;
+
         println!("Client started.");
     }
 
-    pub async fn shutdown(&self) {
-        self.server.disconnect().await;
+    pub async fn shutdown(&mut self) {
+        let _ = self.server.disconnect().await;
         self.file_server.stop().await;
+
         println!("Client shutdown.");
     }
 }

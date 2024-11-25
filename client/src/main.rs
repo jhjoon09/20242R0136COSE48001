@@ -4,7 +4,7 @@ use kudrive_client::Client;
 
 #[tokio::main]
 async fn main() {
-    let client = Client::new();
+    let mut client = Client::new();
 
     println!("Starting client...");
     client.start().await;
