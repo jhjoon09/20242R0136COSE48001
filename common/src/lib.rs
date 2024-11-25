@@ -6,4 +6,4 @@ pub mod tcp;
 pub use fs::{DirTree, FileMetadata};
 pub use message::{client::ClientMessage, server::ServerMessage};
 pub use server::{ClientInfo, Server, ServerStatus};
-pub use tcp::listener::Listener;
+pub use tcp::{listener::Listener, transmitter::Transmitter};

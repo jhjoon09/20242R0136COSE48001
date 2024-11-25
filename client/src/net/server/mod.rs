@@ -1,7 +1,7 @@
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 
-use kudrive_common::{Listener, ServerMessage};
+use kudrive_common::{ClientMessage, Listener, ServerMessage, Transmitter};
 use tokio::io::{self, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, Mutex};
@@ -9,6 +9,7 @@ use tokio::sync::{mpsc, Mutex};
 pub struct Server {
     stream: Option<Arc<Mutex<TcpStream>>>,
     listener: Option<Listener<ServerMessage>>,
+    transmitter: Option<Transmitter>,
 }
 
 impl Server {
@@ -16,15 +17,24 @@ impl Server {
         Self {
             stream: None,
             listener: None,
+            transmitter: None,
         }
     }
 
     pub async fn connect(&mut self) -> io::Result<()> {
         // TODO: server address configuration
         let address = format!("{}:{}", Ipv4Addr::LOCALHOST, 7878);
+
+        // create TCP stream
         let stream = TcpStream::connect(address).await?;
         self.stream = Some(Arc::new(Mutex::new(stream)));
+
+        // transmitter
+        self.transmitter = Some(Transmitter::new(self.stream.clone().unwrap()));
+
+        // listener
         self.spawn().await?;
+
         Ok(())
     }
 
@@ -36,11 +46,9 @@ impl Server {
         Ok(())
     }
 
-    pub async fn send(&mut self, data: &[u8]) -> io::Result<()> {
-        if let Some(stream) = &self.stream {
-            let mut lock = stream.lock().await;
-            lock.write_all(data).await?;
-            drop(lock);
+    pub async fn transmit(&mut self, data: ClientMessage) -> io::Result<()> {
+        if let Some(transmitter) = &self.transmitter {
+            transmitter.send(data).await?;
         }
         Ok(())
     }
