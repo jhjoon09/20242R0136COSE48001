@@ -10,4 +10,4 @@ tokio = { workspace = true }
 async-trait = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-
+bytes = { workspace = true }
