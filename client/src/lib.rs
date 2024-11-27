@@ -1,4 +1,3 @@
-// lib.rs
 pub mod client;
 pub mod config_loader;
 pub mod file_server;

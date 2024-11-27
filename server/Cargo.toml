@@ -11,3 +11,7 @@ async-trait = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 bytes = { workspace = true }
+libp2p = { workspace = true }
+clap = { version = "4.5.20", features = ["derive", "env"] }
+futures = "0.3.31"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
