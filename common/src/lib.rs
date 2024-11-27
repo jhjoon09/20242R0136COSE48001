@@ -1,6 +1,7 @@
 pub mod client;
 pub mod event;
 pub mod fs;
+pub mod p2p;
 pub mod tcp;
 pub mod util;
 
