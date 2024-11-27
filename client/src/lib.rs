@@ -1,75 +1,71 @@
 // lib.rs
+pub mod client;
 pub mod file_server;
 pub mod net;
 
-use file_server::FileServer;
-use kudrive_common::event::client::ClientEvent;
-use net::p2p::P2PTransport;
-use net::server::Server;
-use tokio::sync::mpsc::{self, Receiver, Sender};
+use std::{
+    error::Error,
+    sync::{Arc, LazyLock},
+};
 
-pub struct Client {
-    sender: Sender<ClientEvent>,
-    receiver: Option<Receiver<ClientEvent>>,
-    pub file_server: FileServer,
-    pub server: Server,
-    pub p2p_transport: P2PTransport,
+use client::Client;
+use kudrive_common::event::{
+    client::{ClientEvent, Command, Consequence},
+    server::ClientMessage,
+};
+use tokio::sync::{oneshot, Mutex};
+
+static GLOBAL_STATE: LazyLock<Arc<Mutex<Client>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(Client::new())));
+
+pub async fn init() {
+    let mut client = GLOBAL_STATE.lock().await;
+    client.start().await;
+    drop(client);
 }
 
-impl Client {
-    pub fn new() -> Self {
-        // create event channel
-        let channel = mpsc::channel::<ClientEvent>(1024);
-        let (sender, receiver) = channel;
-
-        Self {
-            sender,
-            receiver: Some(receiver),
-            file_server: FileServer::new(),
-            server: Server::new(),
-            p2p_transport: P2PTransport::new(),
+pub async fn event_loop() -> Result<(), Box<dyn Error>> {
+    loop {
+        let mut client = GLOBAL_STATE.lock().await;
+        if let Err(e) = client.event_listen().await {
+            return Err(Box::new(e));
         }
+        drop(client);
     }
+}
 
-    fn sender(&self) -> Sender<ClientEvent> {
-        self.sender.clone()
+pub async fn file_send(target: String, from: String, to: String) -> Result<(), String> {
+    let (responder, receiver) = oneshot::channel::<Consequence>();
+
+    let command = Command::FileSend { target, from, to };
+    let event = ClientEvent::Command { command, responder };
+
+    let client = GLOBAL_STATE.lock().await;
+    client.sender().send(event).await.unwrap();
+    drop(client);
+
+    let handle = tokio::spawn(async move { receiver.await });
+    println!("File send request sent.");
+
+    // 태스크 완료를 기다림
+    match handle.await {
+        Ok(Ok(consequence)) => match consequence {
+            Consequence::FileSend { result } => result,
+            _ => Err("Unexpected consequence".to_string()),
+        },
+        Ok(Err(e)) => Err(format!("Failed to send file: {:?}", e)),
+        Err(e) => Err(format!("Failed to send file: {:?}", e)),
     }
+}
 
-    fn receiver(&mut self) -> Option<Receiver<ClientEvent>> {
-        self.receiver.take()
-    }
+pub async fn shutdown() {
+    let mut client = GLOBAL_STATE.lock().await;
+    client.shutdown().await;
+    drop(client);
+}
 
-    pub async fn start(&mut self) {
-        if let Err(e) = self.server.connect(self.sender()).await {
-            eprintln!("Failed to connect to server: {:?}", e);
-            return;
-        }
-
-        // self.file_server.start().await;
-        // self.p2p_transport.connect().await;
-
-        println!("Client started.");
-
-        self.event_listen().await;
-    }
-
-    async fn event_listen(&mut self) {
-        let mut receiver = self.receiver().unwrap();
-
-        // event loop
-        while let Some(message) = receiver.recv().await {
-            match message {
-                ClientEvent::Message { message } => {
-                    println!("Received message: {:?}", message);
-                }
-            }
-        }
-    }
-
-    pub async fn shutdown(&mut self) {
-        let _ = self.server.disconnect().await;
-        self.file_server.stop().await;
-
-        println!("Client shutdown.");
-    }
+pub async fn send_event(event: ClientMessage) {
+    let mut client = GLOBAL_STATE.lock().await;
+    client.server.transmit(event).await.unwrap();
+    drop(client);
 }

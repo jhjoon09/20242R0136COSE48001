@@ -2,6 +2,7 @@ pub mod event;
 pub mod fs;
 pub mod server;
 pub mod tcp;
+pub mod util;
 
 pub use fs::{DirTree, FileMetadata};
 pub use server::{ClientInfo, Server, ServerStatus};
