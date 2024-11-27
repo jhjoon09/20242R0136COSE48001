@@ -5,13 +5,16 @@ use tokio::io::{self};
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, Mutex};
 
-use crate::message::Message;
+use crate::event::Event;
 
-pub struct Listener<T: Message> {
-    _marker: std::marker::PhantomData<T>,
+use super::message::Message;
+
+pub struct Listener<U: Message, T: Event<U>> {
+    _marker1: std::marker::PhantomData<T>,
+    _marker2: std::marker::PhantomData<U>,
 }
 
-impl<T: Message> Listener<T> {
+impl<U: Message, T: Event<U>> Listener<U, T> {
     pub fn spawn(stream: Arc<Mutex<TcpStream>>, sender: mpsc::Sender<T>) -> Self {
         tokio::spawn(async move {
             if let Err(e) = handle_stream(stream, sender).await {
@@ -19,12 +22,13 @@ impl<T: Message> Listener<T> {
             }
         });
         Self {
-            _marker: std::marker::PhantomData,
+            _marker1: std::marker::PhantomData,
+            _marker2: std::marker::PhantomData,
         }
     }
 }
 
-async fn handle_stream<T: Message>(
+async fn handle_stream<T: Event<impl Message>>(
     stream: Arc<Mutex<TcpStream>>,
     sender: mpsc::Sender<T>,
 ) -> io::Result<()> {
@@ -54,7 +58,8 @@ async fn handle_stream<T: Message>(
                 Some(len) if buffer.len() >= len => {
                     let data = buffer.split_to(len).freeze();
                     let message = Message::from_bytes(&data);
-                    if sender.send(message).await.is_err() {
+                    let event = T::from_message(message);
+                    if sender.send(event).await.is_err() {
                         eprintln!("Failed to send message to the receiver");
                     }
                     next = None;

@@ -5,7 +5,7 @@ use tokio::io::{self, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 
-use crate::message::Message;
+use super::message::Message;
 
 pub struct Transmitter {
     stream: Arc<Mutex<TcpStream>>,

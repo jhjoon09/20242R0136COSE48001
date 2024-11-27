@@ -1,14 +1,16 @@
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 
-use kudrive_common::{ClientMessage, Listener, ServerMessage, Transmitter};
+use kudrive_common::event::client::{ClientEvent, ServerMessage};
+use kudrive_common::message::client::ClientMessage;
+use kudrive_common::{Listener, Transmitter};
 use tokio::io::{self, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, Mutex};
 
 pub struct Server {
     stream: Option<Arc<Mutex<TcpStream>>>,
-    listener: Option<Listener<ServerMessage>>,
+    listener: Option<Listener<ServerMessage, ClientEvent>>,
     transmitter: Option<Transmitter>,
 }
 
@@ -54,7 +56,7 @@ impl Server {
     }
 
     pub async fn spawn(&mut self) -> io::Result<()> {
-        let (sender, mut receiver) = mpsc::channel::<ServerMessage>(1024);
+        let (sender, mut receiver) = mpsc::channel::<ClientEvent>(1024);
         let stream = self.stream.clone().unwrap();
 
         self.listener = Some(Listener::spawn(stream, sender));
