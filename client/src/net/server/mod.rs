@@ -6,7 +6,8 @@ use kudrive_common::message::client::ClientMessage;
 use kudrive_common::{Listener, Transmitter};
 use tokio::io::{self, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc::Sender;
+use tokio::sync::Mutex;
 
 pub struct Server {
     stream: Option<Arc<Mutex<TcpStream>>>,
@@ -23,19 +24,21 @@ impl Server {
         }
     }
 
-    pub async fn connect(&mut self) -> io::Result<()> {
+    pub fn clone_stream(&self) -> Arc<Mutex<TcpStream>> {
+        self.stream.clone().unwrap()
+    }
+
+    pub async fn connect(&mut self, sender: Sender<ClientEvent>) -> io::Result<()> {
         // TODO: server address configuration
         let address = format!("{}:{}", Ipv4Addr::LOCALHOST, 7878);
 
-        // create TCP stream
+        // create tcp stream
         let stream = TcpStream::connect(address).await?;
         self.stream = Some(Arc::new(Mutex::new(stream)));
 
-        // transmitter
-        self.transmitter = Some(Transmitter::new(self.stream.clone().unwrap()));
-
-        // listener
-        self.spawn().await?;
+        // create transmitter and listener
+        self.transmitter = Some(Transmitter::new(self.clone_stream()));
+        self.listener = Some(Listener::spawn(self.clone_stream(), sender));
 
         Ok(())
     }
@@ -52,22 +55,6 @@ impl Server {
         if let Some(transmitter) = &self.transmitter {
             transmitter.send(data).await?;
         }
-        Ok(())
-    }
-
-    pub async fn spawn(&mut self) -> io::Result<()> {
-        let (sender, mut receiver) = mpsc::channel::<ClientEvent>(1024);
-        let stream = self.stream.clone().unwrap();
-
-        self.listener = Some(Listener::spawn(stream, sender));
-
-        // TODO: handle received messages
-        tokio::spawn(async move {
-            while let Some(message) = receiver.recv().await {
-                println!("Received: {:?}", message);
-            }
-        });
-
         Ok(())
     }
 }
