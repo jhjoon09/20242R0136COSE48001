@@ -9,6 +9,7 @@ use super::Message;
 pub enum ClientMessage {
     HealthCheck { timestamp: SystemTime },
     FileMapUpdate { file_map: () },
+    FindPeer { target: String },
 }
 
 impl Message for ClientMessage {

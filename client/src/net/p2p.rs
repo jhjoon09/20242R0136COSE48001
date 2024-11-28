@@ -1,14 +1,8 @@
 use kudrive_common::{
     event::client::{ClientEvent, Consequence},
-    ClientInfo,
+    peer::Peer,
 };
-use std::net::Ipv4Addr;
 use tokio::sync::mpsc::Sender;
-
-pub struct Peer {
-    client: ClientInfo,
-    addr: Ipv4Addr,
-}
 
 pub struct P2PTransport {
     peers: Vec<Peer>,
@@ -39,12 +33,12 @@ impl P2PTransport {
         self.responder.clone()
     }
 
-    pub async fn send_file(&self, id: u64, target: String, from: String, to: String) {
+    pub async fn send_file(&self, id: u64, peer: Peer, from: String, to: String) {
         let responder = self.responder();
 
         tokio::spawn(async move {
             /* TODO: logics for send file */
-            println!("Sending file: from my {} to cilent {} {}", from, target, to);
+            println!("Sending file: from my {} to cilent {:?} {}", from, peer, to);
 
             responder
                 .send(ClientEvent::Consequence {
@@ -55,12 +49,12 @@ impl P2PTransport {
         });
     }
 
-    pub async fn receive_file(&self, id: u64, target: String, from: String, to: String) {
+    pub async fn receive_file(&self, id: u64, peer: Peer, from: String, to: String) {
         let responder = self.responder();
 
         tokio::spawn(async move {
             /* TODO: logics for receive file */
-            println!("Receiving file: from {} {} to my {}", target, from, to);
+            println!("Receiving file: from {:?} {} to my {}", peer, from, to);
 
             responder
                 .send(ClientEvent::Consequence {

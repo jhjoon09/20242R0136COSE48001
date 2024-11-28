@@ -56,21 +56,26 @@ impl Client {
         self.clients = clients;
     }
 
-    async fn get_clients(&self, id: u64) {
-        let clients = self.clients;
+    async fn transmit(&mut self, message: ClientMessage) {
+        self.server.transmit(message).await.unwrap();
+    }
+
+    async fn send_event(&self, event: ClientEvent) {
         let responder = self.sender();
 
         tokio::spawn(async move {
-            responder
-                .send(ClientEvent::Consequence {
-                    id,
-                    consequence: Consequence::Clients {
-                        result: Ok(clients),
-                    },
-                })
-                .await
-                .unwrap();
+            responder.send(event).await.unwrap();
         });
+    }
+
+    async fn get_clients(&self, id: u64) {
+        let clients = self.clients;
+        let consequence = Consequence::Clients {
+            result: Ok(clients),
+        };
+
+        let event = ClientEvent::Consequence { id, consequence };
+        self.send_event(event).await;
     }
 
     pub async fn start(&mut self) {
@@ -103,22 +108,34 @@ impl Client {
                         // TODO: implement clients update
                         self.set_clients(clients);
                     }
+                    ServerMessage::FoundPeer { id, peer } => {
+                        let event = ClientEvent::Consequence {
+                            id,
+                            consequence: Consequence::FindPeer { result: Ok(peer) },
+                        };
+                        // TODO: test peer connection with server
+                        self.send_event(event).await;
+                    }
                 }
             }
             ClientEvent::FileMapUpdate { file_map } => {
                 // TODO: implement file map update
                 let message = ClientMessage::FileMapUpdate { file_map };
-                self.server.transmit(message).await.unwrap();
+                self.transmit(message).await;
             }
             ClientEvent::Command { command, responder } => {
                 println!("Received command: {:?}", command);
                 let id = self.pendings.insert(responder);
                 match command {
-                    Command::FileSend { target, from, to } => {
-                        self.p2p_transport.send_file(id, target, from, to).await;
+                    Command::FindPeer { target } => {
+                        let message = ClientMessage::FindPeer { target };
+                        self.transmit(message).await;
                     }
-                    Command::FileReceive { target, from, to } => {
-                        self.p2p_transport.receive_file(id, target, from, to).await;
+                    Command::FileSend { peer, from, to } => {
+                        self.p2p_transport.send_file(id, peer, from, to).await;
+                    }
+                    Command::FileReceive { peer, from, to } => {
+                        self.p2p_transport.receive_file(id, peer, from, to).await;
                     }
                     Command::Clients {} => {
                         self.get_clients(id).await;

@@ -55,21 +55,47 @@ pub async fn execute_command(command: Command) -> Result<Consequence, String> {
 }
 
 pub async fn file_send(target: String, from: String, to: String) -> Result<(), String> {
-    let command = Command::FileSend { target, from, to };
+    let command = Command::FindPeer { target };
 
-    match execute_command(command).await {
-        Ok(Consequence::FileSend { result }) => result,
+    let result = match execute_command(command).await {
+        Ok(Consequence::FindPeer { result }) => result,
         Ok(_) => Err("Unexpected consequence".to_string()),
+        Err(e) => Err(e),
+    };
+
+    match result {
+        Ok(peer) => {
+            let command = Command::FileSend { peer, from, to };
+
+            match execute_command(command).await {
+                Ok(Consequence::FileSend { result }) => result,
+                Ok(_) => Err("Unexpected consequence".to_string()),
+                Err(e) => Err(e),
+            }
+        }
         Err(e) => Err(e),
     }
 }
 
 pub async fn file_receive(target: String, from: String, to: String) -> Result<(), String> {
-    let command = Command::FileReceive { target, from, to };
+    let command = Command::FindPeer { target };
 
-    match execute_command(command).await {
-        Ok(Consequence::FileReceive { result }) => result,
+    let result = match execute_command(command).await {
+        Ok(Consequence::FindPeer { result }) => result,
         Ok(_) => Err("Unexpected consequence".to_string()),
+        Err(e) => Err(e),
+    };
+
+    match result {
+        Ok(peer) => {
+            let command = Command::FileReceive { peer, from, to };
+
+            match execute_command(command).await {
+                Ok(Consequence::FileSend { result }) => result,
+                Ok(_) => Err("Unexpected consequence".to_string()),
+                Err(e) => Err(e),
+            }
+        }
         Err(e) => Err(e),
     }
 }

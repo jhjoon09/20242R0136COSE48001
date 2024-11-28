@@ -1,5 +1,6 @@
 pub mod event;
 pub mod fs;
+pub mod peer;
 pub mod server;
 pub mod tcp;
 pub mod util;
