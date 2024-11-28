@@ -1,11 +1,13 @@
-use kudrive_common::event::client::{command::Consequence, ClientEvent};
+use kudrive_common::event::client::ClientEvent;
 use tokio::sync::mpsc::Sender;
 
-pub struct FileServer;
+pub struct FileServer {
+    responder: Sender<ClientEvent>,
+}
 
 impl FileServer {
-    pub fn new() -> Self {
-        Self
+    pub fn new(responder: Sender<ClientEvent>) -> Self {
+        Self { responder }
     }
 
     pub async fn start(&self) {
@@ -16,44 +18,17 @@ impl FileServer {
         println!("File server stopped.");
     }
 
-    pub async fn send_file(
-        &self,
-        responder: Sender<ClientEvent>,
-        id: u64,
-        target: String,
-        from: String,
-        to: String,
-    ) {
-        tokio::spawn(async move {
-            /* TODO: logics for send file */
-            println!("Sending file: from my {} to cilent {} {}", from, target, to);
-
-            responder
-                .send(ClientEvent::Consequence {
-                    id,
-                    consequence: Consequence::FileSend { result: Ok(()) },
-                })
-                .await
-        });
+    fn responder(&self) -> Sender<ClientEvent> {
+        self.responder.clone()
     }
 
-    pub async fn receive_file(
-        &self,
-        responder: Sender<ClientEvent>,
-        id: u64,
-        target: String,
-        from: String,
-        to: String,
-    ) {
-        tokio::spawn(async move {
-            /* TODO: logics for receive file */
-            println!("Receiving file: from {} {} to my {}", target, from, to);
+    async fn file_map_update(&self) {
+        let responder = self.responder();
 
+        // TODO: logics for file map update
+        tokio::spawn(async move {
             responder
-                .send(ClientEvent::Consequence {
-                    id,
-                    consequence: Consequence::FileReceive { result: Ok(()) },
-                })
+                .send(ClientEvent::FileMapUpdate { file_map: () })
                 .await
         });
     }

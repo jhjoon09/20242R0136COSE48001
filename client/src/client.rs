@@ -34,11 +34,11 @@ impl Client {
         let (sender, receiver) = channel;
 
         Self {
+            server: Server::new(),
+            file_server: FileServer::new(sender.clone()),
+            p2p_transport: P2PTransport::new(sender.clone()),
             sender,
             receiver,
-            file_server: FileServer::new(),
-            server: Server::new(),
-            p2p_transport: P2PTransport::new(),
             pendings: Pendings::new(),
             clients: (),
         }
@@ -56,8 +56,10 @@ impl Client {
         self.clients = clients;
     }
 
-    async fn get_clients(&self, responder: Sender<ClientEvent>, id: u64) {
+    async fn get_clients(&self, id: u64) {
         let clients = self.clients;
+        let responder = self.sender();
+
         tokio::spawn(async move {
             responder
                 .send(ClientEvent::Consequence {
@@ -110,21 +112,16 @@ impl Client {
             }
             ClientEvent::Command { command, responder } => {
                 println!("Received command: {:?}", command);
-                let sender = self.sender();
                 let id = self.pendings.insert(responder);
                 match command {
                     Command::FileSend { target, from, to } => {
-                        self.file_server
-                            .send_file(sender, id, target, from, to)
-                            .await;
+                        self.p2p_transport.send_file(id, target, from, to).await;
                     }
                     Command::FileReceive { target, from, to } => {
-                        self.file_server
-                            .receive_file(sender, id, target, from, to)
-                            .await;
+                        self.p2p_transport.receive_file(id, target, from, to).await;
                     }
                     Command::Clients {} => {
-                        self.get_clients(sender, id).await;
+                        self.get_clients(id).await;
                     }
                 }
             }
