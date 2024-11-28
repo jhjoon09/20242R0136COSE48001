@@ -1,4 +1,4 @@
-use kudrive_common::event::client::ClientEvent;
+use kudrive_common::event::client::{command::Consequence, ClientEvent};
 use tokio::sync::mpsc::Sender;
 
 pub struct FileServer;
@@ -12,30 +12,49 @@ impl FileServer {
         println!("File server started.");
     }
 
-    /* TODO: real send file */
+    pub async fn stop(&self) {
+        println!("File server stopped.");
+    }
+
     pub async fn send_file(
         &self,
-        sender: Sender<ClientEvent>,
+        responder: Sender<ClientEvent>,
         id: u64,
         target: String,
         from: String,
         to: String,
     ) {
         tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-            sender
+            /* TODO: logics for send file */
+            println!("Sending file: from my {} to cilent {} {}", from, target, to);
+
+            responder
                 .send(ClientEvent::Consequence {
                     id,
-                    consequence: kudrive_common::event::client::Consequence::FileSend {
-                        result: Ok(()),
-                    },
+                    consequence: Consequence::FileSend { result: Ok(()) },
                 })
                 .await
         });
-        println!("Sending file to {} from {} to {}", target, from, to);
     }
 
-    pub async fn stop(&self) {
-        println!("File server stopped.");
+    pub async fn receive_file(
+        &self,
+        responder: Sender<ClientEvent>,
+        id: u64,
+        target: String,
+        from: String,
+        to: String,
+    ) {
+        tokio::spawn(async move {
+            /* TODO: logics for receive file */
+            println!("Receiving file: from {} {} to my {}", target, from, to);
+
+            responder
+                .send(ClientEvent::Consequence {
+                    id,
+                    consequence: Consequence::FileReceive { result: Ok(()) },
+                })
+                .await
+        });
     }
 }

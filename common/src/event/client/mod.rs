@@ -1,30 +1,10 @@
+pub mod command;
+
+pub use command::{Command, Consequence};
 use tokio::sync::oneshot;
 
 use super::Event;
 pub use crate::message::server::ServerMessage;
-
-#[derive(Debug)]
-
-pub enum Command {
-    FileSend {
-        target: String,
-        from: String,
-        to: String,
-    },
-    FileReceive {
-        target: String,
-        from: String,
-        to: String,
-    },
-    Clients {},
-}
-
-#[derive(Debug)]
-pub enum Consequence {
-    FileSend { result: Result<(), String> },
-    FileReceive { result: Result<(), String> },
-    Clients { result: Result<(), String> },
-}
 
 #[derive(Debug)]
 pub enum ClientEvent {

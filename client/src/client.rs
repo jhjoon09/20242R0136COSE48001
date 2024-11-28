@@ -3,7 +3,10 @@ use crate::{
     net::{p2p::P2PTransport, server::Server},
 };
 use kudrive_common::{
-    event::client::{ClientEvent, Command, Consequence},
+    event::client::{
+        command::{Command, Consequence},
+        ClientEvent,
+    },
     util::Pendings,
 };
 use tokio::sync::{
@@ -18,6 +21,7 @@ pub struct Client {
     pub server: Server,
     pub p2p_transport: P2PTransport,
     pendings: Pendings<oneshot::Sender<Consequence>>,
+    clients: (),
 }
 
 impl Client {
@@ -33,6 +37,7 @@ impl Client {
             server: Server::new(),
             p2p_transport: P2PTransport::new(),
             pendings: Pendings::new(),
+            clients: (),
         }
     }
 
@@ -44,14 +49,34 @@ impl Client {
         self.receiver.try_recv()
     }
 
+    // TODO: implement set clients
+    fn _set_clients(&mut self, clients: ()) {
+        self.clients = clients;
+    }
+
+    async fn get_clients(&self, responder: Sender<ClientEvent>, id: u64) {
+        let clients = self.clients;
+        tokio::spawn(async move {
+            responder
+                .send(ClientEvent::Consequence {
+                    id,
+                    consequence: Consequence::Clients {
+                        result: Ok(clients),
+                    },
+                })
+                .await
+                .unwrap();
+        });
+    }
+
     pub async fn start(&mut self) {
         if let Err(e) = self.server.connect(self.sender()).await {
             eprintln!("Failed to connect to server: {:?}", e);
             return;
         }
 
-        // self.file_server.start().await;
-        // self.p2p_transport.connect().await;
+        self.file_server.start().await;
+        self.p2p_transport.connect().await;
 
         println!("Client started.");
     }
@@ -77,14 +102,22 @@ impl Client {
                             .send_file(sender, id, target, from, to)
                             .await;
                     }
-                    _ => {}
+                    Command::FileReceive { target, from, to } => {
+                        self.file_server
+                            .receive_file(sender, id, target, from, to)
+                            .await;
+                    }
+                    Command::Clients {} => {
+                        self.get_clients(sender, id).await;
+                    }
                 }
             }
             ClientEvent::Consequence { id, consequence } => {
                 if let Some(responder) = self.pendings.remove(id) {
-                    let _ = responder.send(consequence);
+                    responder.send(consequence).unwrap();
                 }
-            }
+            } // TODO: implement clients broadcast message
+              // TODO: implement health check message
         };
         Ok(())
     }

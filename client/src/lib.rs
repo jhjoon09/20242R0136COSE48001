@@ -25,6 +25,9 @@ pub async fn init() {
 }
 
 pub async fn event_loop() -> Result<(), Box<dyn Error>> {
+    // TODO: implement server health check
+    // TODO: implement server reconnect
+    // TODO: implement health check message send
     loop {
         let mut client = GLOBAL_STATE.lock().await;
         if let Err(e) = client.event_listen().await {
@@ -34,10 +37,9 @@ pub async fn event_loop() -> Result<(), Box<dyn Error>> {
     }
 }
 
-pub async fn file_send(target: String, from: String, to: String) -> Result<(), String> {
+pub async fn execute_command(command: Command) -> Result<Consequence, String> {
     let (responder, receiver) = oneshot::channel::<Consequence>();
 
-    let command = Command::FileSend { target, from, to };
     let event = ClientEvent::Command { command, responder };
 
     let client = GLOBAL_STATE.lock().await;
@@ -45,16 +47,40 @@ pub async fn file_send(target: String, from: String, to: String) -> Result<(), S
     drop(client);
 
     let handle = tokio::spawn(async move { receiver.await });
-    println!("File send request sent.");
-
-    // 태스크 완료를 기다림
     match handle.await {
-        Ok(Ok(consequence)) => match consequence {
-            Consequence::FileSend { result } => result,
-            _ => Err("Unexpected consequence".to_string()),
-        },
-        Ok(Err(e)) => Err(format!("Failed to send file: {:?}", e)),
-        Err(e) => Err(format!("Failed to send file: {:?}", e)),
+        Ok(Ok(consequence)) => Ok(consequence),
+        Ok(Err(e)) => Err(format!("Failed to execute command {:?}", e)),
+        Err(e) => Err(format!("Failed to execute command {:?}", e)),
+    }
+}
+
+pub async fn file_send(target: String, from: String, to: String) -> Result<(), String> {
+    let command = Command::FileSend { target, from, to };
+
+    match execute_command(command).await {
+        Ok(Consequence::FileSend { result }) => result,
+        Ok(_) => Err("Unexpected consequence".to_string()),
+        Err(e) => Err(e),
+    }
+}
+
+pub async fn file_receive(target: String, from: String, to: String) -> Result<(), String> {
+    let command = Command::FileReceive { target, from, to };
+
+    match execute_command(command).await {
+        Ok(Consequence::FileReceive { result }) => result,
+        Ok(_) => Err("Unexpected consequence".to_string()),
+        Err(e) => Err(e),
+    }
+}
+
+pub async fn clients() -> Result<(), String> {
+    let command = Command::Clients {};
+
+    match execute_command(command).await {
+        Ok(Consequence::Clients { result }) => result,
+        Ok(_) => Err("Unexpected consequence".to_string()),
+        Err(e) => Err(e),
     }
 }
 
