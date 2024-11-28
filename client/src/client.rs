@@ -3,9 +3,12 @@ use crate::{
     net::{p2p::P2PTransport, server::Server},
 };
 use kudrive_common::{
-    event::client::{
-        command::{Command, Consequence},
-        ClientEvent,
+    event::{
+        client::{
+            command::{Command, Consequence},
+            ClientEvent, ServerMessage,
+        },
+        server::ClientMessage,
     },
     util::Pendings,
 };
@@ -49,8 +52,7 @@ impl Client {
         self.receiver.try_recv()
     }
 
-    // TODO: implement set clients
-    fn _set_clients(&mut self, clients: ()) {
+    fn set_clients(&mut self, clients: ()) {
         self.clients = clients;
     }
 
@@ -91,6 +93,20 @@ impl Client {
         match event {
             ClientEvent::Message { message } => {
                 println!("Received message: {:?}", message);
+                match message {
+                    ServerMessage::HealthCheck { timestamp } => {
+                        println!("Health check: {:?}", timestamp);
+                    }
+                    ServerMessage::ClientsUpdate { clients } => {
+                        // TODO: implement clients update
+                        self.set_clients(clients);
+                    }
+                }
+            }
+            ClientEvent::FileMapUpdate { file_map } => {
+                // TODO: implement file map update
+                let message = ClientMessage::FileMapUpdate { file_map };
+                self.server.transmit(message).await.unwrap();
             }
             ClientEvent::Command { command, responder } => {
                 println!("Received command: {:?}", command);

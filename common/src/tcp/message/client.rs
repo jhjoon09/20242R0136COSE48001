@@ -8,6 +8,7 @@ use super::Message;
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ClientMessage {
     HealthCheck { timestamp: SystemTime },
+    FileMapUpdate { file_map: () },
 }
 
 impl Message for ClientMessage {

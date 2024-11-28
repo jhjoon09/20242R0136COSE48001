@@ -15,6 +15,9 @@ pub enum ClientEvent {
         command: Command,
         responder: oneshot::Sender<Consequence>,
     },
+    FileMapUpdate {
+        file_map: (),
+    },
     Consequence {
         id: u64,
         consequence: Consequence,
