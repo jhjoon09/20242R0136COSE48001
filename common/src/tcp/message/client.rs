@@ -2,13 +2,14 @@ use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 use serde_json;
+use super::super::super::fs::FileMap;
 
 use super::Message;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ClientMessage {
     HealthCheck { timestamp: SystemTime },
-    FileMapUpdate { file_map: () },
+    FileMapUpdate { file_map: FileMap },
     FindPeer { target: String },
 }
 

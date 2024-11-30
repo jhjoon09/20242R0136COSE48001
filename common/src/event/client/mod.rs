@@ -2,7 +2,7 @@ pub mod command;
 
 pub use command::{Command, Consequence};
 use tokio::sync::oneshot;
-
+use super::super::fs::FileMap;
 use super::Event;
 pub use crate::message::server::ServerMessage;
 
@@ -16,7 +16,7 @@ pub enum ClientEvent {
         responder: oneshot::Sender<Consequence>,
     },
     FileMapUpdate {
-        file_map: (),
+        file_map: FileMap,
     },
     Consequence {
         id: u64,

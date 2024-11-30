@@ -2,6 +2,7 @@
 pub mod client;
 pub mod file_server;
 pub mod net;
+pub mod config_loader;
 
 use std::{
     error::Error,
