@@ -3,14 +3,14 @@ use std::time::SystemTime;
 use serde::{Deserialize, Serialize};
 use serde_json;
 
-use crate::Peer;
+use crate::{Client, Peer};
 
 use super::Message;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerMessage {
     HealthCheck { timestamp: SystemTime },
-    ClientsUpdate { clients: () },
+    ClientsUpdate { clients: Vec<Client> },
     FoundPeer { id: u64, peer: Peer },
 }
 

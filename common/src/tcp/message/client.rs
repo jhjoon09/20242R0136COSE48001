@@ -1,8 +1,8 @@
 use std::time::SystemTime;
 
+use super::super::super::fs::FileMap;
 use serde::{Deserialize, Serialize};
 use serde_json;
-use super::super::super::fs::FileMap;
 
 use super::Message;
 

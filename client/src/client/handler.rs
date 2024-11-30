@@ -11,23 +11,24 @@ use kudrive_common::{
         server::ClientMessage,
     },
     util::Pendings,
+    Client,
 };
 use tokio::sync::{
     mpsc::{self, error::TryRecvError, Receiver, Sender},
     oneshot,
 };
 
-pub struct Client {
+pub struct ClientHandler {
     sender: Sender<ClientEvent>,
     receiver: Receiver<ClientEvent>,
     pub file_server: FileServer,
     pub server: Server,
     pub p2p_transport: P2PTransport,
     pendings: Pendings<oneshot::Sender<Consequence>>,
-    clients: (),
+    clients: Vec<Client>,
 }
 
-impl Client {
+impl ClientHandler {
     pub fn new() -> Self {
         // create event channel
         let channel = mpsc::channel::<ClientEvent>(1024);
@@ -40,7 +41,7 @@ impl Client {
             sender,
             receiver,
             pendings: Pendings::new(),
-            clients: (),
+            clients: Vec::new(),
         }
     }
 
@@ -52,7 +53,7 @@ impl Client {
         self.receiver.try_recv()
     }
 
-    fn set_clients(&mut self, clients: ()) {
+    fn set_clients(&mut self, clients: Vec<Client>) {
         self.clients = clients;
     }
 
@@ -69,7 +70,7 @@ impl Client {
     }
 
     async fn get_clients(&self, id: u64) {
-        let clients = self.clients;
+        let clients = self.clients.clone();
         let consequence = Consequence::Clients {
             result: Ok(clients),
         };

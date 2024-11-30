@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::FileMap;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Client {
     group: Uuid,
     id: Uuid,
@@ -13,6 +13,5 @@ pub struct Client {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Peer {
-    info: Client,
     // TODO: Add more fields
 }

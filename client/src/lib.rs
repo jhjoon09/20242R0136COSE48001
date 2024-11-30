@@ -1,28 +1,31 @@
 // lib.rs
 pub mod client;
+pub mod config_loader;
 pub mod file_server;
 pub mod net;
-pub mod config_loader;
 
 use std::{
     error::Error,
     sync::{Arc, LazyLock},
 };
 
-use client::Client;
-use kudrive_common::event::{
-    client::{ClientEvent, Command, Consequence},
-    server::ClientMessage,
+use client::handler::ClientHandler;
+use kudrive_common::{
+    event::{
+        client::{ClientEvent, Command, Consequence},
+        server::ClientMessage,
+    },
+    Client,
 };
 use tokio::sync::{oneshot, Mutex};
 
-static GLOBAL_STATE: LazyLock<Arc<Mutex<Client>>> =
-    LazyLock::new(|| Arc::new(Mutex::new(Client::new())));
+static GLOBAL_STATE: LazyLock<Arc<Mutex<ClientHandler>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(ClientHandler::new())));
 
 pub async fn init() {
-    let mut client = GLOBAL_STATE.lock().await;
-    client.start().await;
-    drop(client);
+    let mut handler = GLOBAL_STATE.lock().await;
+    handler.start().await;
+    drop(handler);
 }
 
 pub async fn event_loop() -> Result<(), Box<dyn Error>> {
@@ -43,9 +46,9 @@ pub async fn execute_command(command: Command) -> Result<Consequence, String> {
 
     let event = ClientEvent::Command { command, responder };
 
-    let client = GLOBAL_STATE.lock().await;
-    client.sender().send(event).await.unwrap();
-    drop(client);
+    let handler = GLOBAL_STATE.lock().await;
+    handler.sender().send(event).await.unwrap();
+    drop(handler);
 
     let handle = tokio::spawn(async move { receiver.await });
     match handle.await {
@@ -101,7 +104,7 @@ pub async fn file_receive(target: String, from: String, to: String) -> Result<()
     }
 }
 
-pub async fn clients() -> Result<(), String> {
+pub async fn clients() -> Result<Vec<Client>, String> {
     let command = Command::Clients {};
 
     match execute_command(command).await {
@@ -112,13 +115,13 @@ pub async fn clients() -> Result<(), String> {
 }
 
 pub async fn shutdown() {
-    let mut client = GLOBAL_STATE.lock().await;
-    client.shutdown().await;
-    drop(client);
+    let mut handler = GLOBAL_STATE.lock().await;
+    handler.shutdown().await;
+    drop(handler);
 }
 
 pub async fn send_event(event: ClientMessage) {
-    let mut client = GLOBAL_STATE.lock().await;
-    client.server.transmit(event).await.unwrap();
-    drop(client);
+    let mut handler = GLOBAL_STATE.lock().await;
+    handler.server.transmit(event).await.unwrap();
+    drop(handler);
 }
