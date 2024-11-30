@@ -37,7 +37,7 @@ impl ClientHandler {
         Self {
             server: Server::new(),
             file_server: FileServer::new(sender.clone()),
-            p2p_transport: P2PTransport::new(sender.clone()),
+            p2p_transport: P2PTransport::new(),
             sender,
             receiver,
             pendings: Pendings::new(),
@@ -62,11 +62,7 @@ impl ClientHandler {
     }
 
     async fn send_event(&self, event: ClientEvent) {
-        let responder = self.sender();
-
-        tokio::spawn(async move {
-            responder.send(event).await.unwrap();
-        });
+        self.sender.send(event).await.unwrap();
     }
 
     async fn get_clients(&self, id: u64) {
@@ -109,14 +105,6 @@ impl ClientHandler {
                         // TODO: implement clients update
                         self.set_clients(clients);
                     }
-                    ServerMessage::FoundPeer { id, peer } => {
-                        let event = ClientEvent::Consequence {
-                            id,
-                            consequence: Consequence::FindPeer { result: Ok(peer) },
-                        };
-                        // TODO: test peer connection with server
-                        self.send_event(event).await;
-                    }
                 }
             }
             ClientEvent::FileMapUpdate { file_map } => {
@@ -128,16 +116,6 @@ impl ClientHandler {
                 println!("Received command: {:?}", command);
                 let id = self.pendings.insert(responder);
                 match command {
-                    Command::FindPeer { target } => {
-                        let message = ClientMessage::FindPeer { target };
-                        self.transmit(message).await;
-                    }
-                    Command::FileSend { peer, from, to } => {
-                        self.p2p_transport.send_file(id, peer, from, to).await;
-                    }
-                    Command::FileReceive { peer, from, to } => {
-                        self.p2p_transport.receive_file(id, peer, from, to).await;
-                    }
                     Command::Clients {} => {
                         self.get_clients(id).await;
                     }
