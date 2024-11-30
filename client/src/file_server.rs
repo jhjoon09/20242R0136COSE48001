@@ -56,9 +56,7 @@ impl FileServer {
         Self { responder }
     }
 
-    pub async fn start(&self) {
-        println!("File server started.");
-
+    async fn listen_file_changes(&self) {
         let config = get_config();
         let path = &config.file.workspace;
         let exclude_patterns = 
@@ -66,16 +64,16 @@ impl FileServer {
             .map(|pattern| Regex::new(pattern).unwrap())
             .collect::<Vec<Regex>>();
         let delay_time = config.file.refresh_time as u128;
-
+    
         let (tx,rx) = mpsc::channel::<Result<Event>>();
         let mut watcher : RecommendedWatcher = notify::recommended_watcher(tx).expect("watcher error");
-
+    
         watcher.watch(Path::new(path), RecursiveMode::Recursive).expect("watch error");
-
+    
         let mut now = std::time::Instant::now();
-
+    
         for res in rx {
-
+    
             match res {
                 Ok(event) => {
                     let elapsed = now.elapsed();
@@ -112,6 +110,18 @@ impl FileServer {
         }
     }
 
+    pub async fn start(&self) {
+        println!("File server started.");
+
+        let responder = self.responder.clone();
+    
+        tokio::spawn(async move {
+            let file_server = FileServer { responder };
+            file_server.listen_file_changes().await;
+        });
+    }
+
+    
     pub async fn stop(&self) {
         println!("File server stopped.");
     }
