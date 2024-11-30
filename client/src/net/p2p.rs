@@ -1,6 +1,6 @@
 use kudrive_common::{
     event::client::{ClientEvent, Consequence},
-    peer::Peer,
+    Peer,
 };
 use tokio::sync::mpsc::Sender;
 

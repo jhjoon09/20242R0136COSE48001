@@ -3,7 +3,7 @@ use std::time::SystemTime;
 use serde::{Deserialize, Serialize};
 use serde_json;
 
-use crate::peer::Peer;
+use crate::Peer;
 
 use super::Message;
 

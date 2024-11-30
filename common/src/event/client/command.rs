@@ -1,4 +1,4 @@
-use crate::peer::Peer;
+use crate::Peer;
 
 #[derive(Debug)]
 
