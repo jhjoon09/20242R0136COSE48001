@@ -32,7 +32,7 @@ pub struct IdConfig {
 
 lazy_static! {
     static ref CONFIG: Config = {
-        let file_path = "../config/client.yaml"; // YAML 파일 경로
+        let file_path = "./client/config/client.yaml"; // YAML 파일 경로
         let contents = fs::read_to_string(file_path)
             .expect("Failed to read config file");
         serde_yaml::from_str(&contents)
