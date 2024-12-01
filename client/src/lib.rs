@@ -20,6 +20,9 @@ use tokio::sync::{oneshot, Mutex};
 
 static GLOBAL_STATE: LazyLock<Arc<Mutex<ClientHandler>>> =
     LazyLock::new(|| Arc::new(Mutex::new(ClientHandler::new())));
+use file_server::FileServer;
+pub use net::p2p;
+use net::transport::Transport;
 
 pub async fn init() {
     let mut handler = GLOBAL_STATE.lock().await;
