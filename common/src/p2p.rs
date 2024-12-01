@@ -1,7 +1,5 @@
 use libp2p::{identity, Multiaddr, PeerId};
 use serde::{Deserialize, Serialize};
-use crate::{ClientInfo, FileMetadata};
-
 
 pub fn generate_ed25519(secret_key_seed: &str) -> identity::Keypair {
     let mut bytes = [0u8; 32];
