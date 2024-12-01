@@ -1,4 +1,3 @@
-use clap::Parser;
 use futures::{executor::block_on, future::FutureExt, stream::StreamExt};
 use kudrive_common::p2p::generate_ed25519;
 use libp2p::{
@@ -78,15 +77,22 @@ pub enum P2pCommand {
     },
 }
 
-pub struct P2pTransport {
+pub struct P2PTransport {
     pub p2p_id: PeerId,
     pub relay_address: Multiaddr,
     pub command_tx: Sender<P2pCommand>,
 }
 
-impl P2pTransport {
+impl P2PTransport {
+    pub fn new_mock() -> Self {
+        let (tx, _) = mpsc::channel::<P2pCommand>(CMD_BUFF_SIZE);
+        Self {
+            p2p_id: PeerId::random(),
+            relay_address: Multiaddr::empty(),
+            command_tx: tx,
+        }
+    }
     pub async fn new(relay_address: &str, secret_key_seed: &str) -> Result<Self, Box<dyn Error>> {
-
         let mut swarm = Self::init_swarm(secret_key_seed).await?;
         let p2p_id = swarm.local_peer_id().clone();
 
@@ -792,7 +798,8 @@ impl P2pTransport {
                         } else {
                             tracing::info!("Received file from {:?}: {}", peer, response.file_name);
                             // let file_path = base_dir_path.join(&response.file_name);
-                            if let Ok(file_path) = PathBuf::from_str(&response.tgt_path) {
+                            if let Ok(mut file_path) = PathBuf::from_str(&response.tgt_path) {
+                                file_path = file_path.join(&response.file_name);
                                 // if tokio::fs::write(&file_path, &response.content)
                                 if tokio::fs::write(&file_path, &response.content)
                                     .await
@@ -854,7 +861,7 @@ impl P2pTransport {
 
 
 pub async fn run_cli_command(
-    client: &mut P2pTransport,
+    client: &mut P2PTransport,
     cmd: &str,
     send_rx: &mut Option<oneshot::Receiver<Result<(), String>>>,
 ) -> bool {

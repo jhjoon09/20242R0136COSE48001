@@ -1,7 +1,9 @@
 use crate::{
     file_server::FileServer,
     net::{p2p::P2PTransport, server::Server},
+    p2p,
 };
+use dotenv::{dotenv, from_path};
 use kudrive_common::{
     event::{
         client::{
@@ -30,6 +32,15 @@ pub struct ClientHandler {
 
 impl ClientHandler {
     pub fn new() -> Self {
+        // let _ = from_path(".client.env");
+        // dotenv().ok();
+        // let client_hostname = env::var("CLIENT_NAME").expect("CLIENT_NAME must be set");
+        // let relay_address = env::var("RELAY_ADDR").expect("RELAY_ADDR must be set");
+        // let p2p_transport = P2PTransport::new(&relay_address, &client_hostname)
+        //     .await
+        //     .expect("Failed to create P2P client");
+        let p2p_transport = P2PTransport::new_mock();
+
         // create event channel
         let channel = mpsc::channel::<ClientEvent>(1024);
         let (sender, receiver) = channel;
@@ -37,7 +48,7 @@ impl ClientHandler {
         Self {
             server: Server::new(),
             file_server: FileServer::new(sender.clone()),
-            p2p_transport: P2PTransport::new(),
+            p2p_transport,
             sender,
             receiver,
             pendings: Pendings::new(),
@@ -82,7 +93,8 @@ impl ClientHandler {
         }
 
         self.file_server.start().await;
-        self.p2p_transport.connect().await;
+        // self.p2p_transport.connect_relay(10).await;
+        // self.p2p_transport.listen_on_peer(10).await;
 
         println!("Client started.");
     }
