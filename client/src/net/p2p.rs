@@ -7,7 +7,7 @@ use libp2p::{
     swarm::{DialError, NetworkBehaviour, SwarmEvent},
     tcp, yamux, PeerId, StreamProtocol, Swarm,
 };
-use std::{collections::HashMap, path::PathBuf, str::FromStr};
+use std::{collections::HashMap, num::NonZero, path::PathBuf, str::FromStr};
 use std::{error::Error, time::Duration};
 use tokio::{
     fs::File,
@@ -22,6 +22,13 @@ use tracing_subscriber::EnvFilter;
 
 use super::ku_protocol::{self, KuFileTransferCodec};
 
+// Swarm config
+const SWARM_IDLE_TIMEOUT: u64 = 60;
+const SWARM_CONN_BUF_SIZE: usize = 1000;
+const SWARM_MAX_NEGOTIATING_INBOUND_STREAMS: usize = 100;
+const SWARM_NOTIFY_BUF_SIZE: usize = 1000;
+
+// P2PTransport config
 const MAX_DIAL_RETRY: usize = 3;
 const INIT_LISTEN_DELAY: u64 = 2;
 const CMD_BUFF_SIZE: usize = 10000;
@@ -54,6 +61,9 @@ pub enum P2pCommand {
     },
     GetStatus {
         response_tx: oneshot::Sender<P2pStatus>,
+    },
+    GetListenAddr {
+        response_tx: oneshot::Sender<Vec<String>>,
     },
     ConnectToRelay {
         response_tx: oneshot::Sender<Result<(), String>>,
@@ -92,11 +102,11 @@ impl P2PTransport {
             command_tx: tx,
         }
     }
-    pub async fn new(relay_address: &str, secret_key_seed: &str) -> Result<Self, Box<dyn Error>> {
-        let mut swarm = Self::init_swarm(secret_key_seed).await?;
-        let p2p_id = swarm.local_peer_id().clone();
 
+    pub async fn new(relay_address: &str, secret_key_seed: &str) -> Result<Self, Box<dyn Error>> {
         let relay_address = Multiaddr::from_str(relay_address).expect("Invalid relay address");
+        let mut swarm = Self::init_swarm(secret_key_seed, &mut relay_address.clone()).await?;
+        let p2p_id = swarm.local_peer_id().clone();
 
         let (tx, rx) = mpsc::channel::<P2pCommand>(CMD_BUFF_SIZE);
         let p2p_client = Self {
@@ -143,6 +153,24 @@ impl P2PTransport {
     pub async fn exit(&self) -> Result<(), Box<dyn Error>> {
         let command = P2pCommand::Exit;
         self.command_tx.send(command).await?;
+        Ok(())
+    }
+
+    pub async fn warm_up_with_delay(&self, delay: u64) -> Result<(), Box<dyn Error>> {
+        let mut time_left = delay;
+
+        let mut cur_time = tokio::time::Instant::now();
+        let _ = self.connect_relay(2).await;
+        time_left = time_left.saturating_sub(cur_time.elapsed().as_secs());
+        tracing::debug!("Relay connect took {:?} sec", cur_time.elapsed());
+
+        tokio::time::sleep(Duration::from_secs(delay / 2)).await;
+
+        cur_time = tokio::time::Instant::now();
+        let _ = self.listen_on_peer(2).await;
+        tracing::debug!("Listening took {:?} sec", cur_time.elapsed());
+
+        tokio::time::sleep(Duration::from_secs(delay - (delay / 2))).await;
         Ok(())
     }
 
@@ -261,7 +289,7 @@ impl P2PTransport {
         tokio::select! {
             res = rx => {
                 match res {
-                    Ok(Ok(())) => return Ok(()),
+                    Ok(_) => return Ok(()),
                     _ => {
                         tracing::error!("Failed to listen on peer");
                         return Err("Failed to listen on peer".into());
@@ -273,6 +301,32 @@ impl P2PTransport {
                 return Err("Timeout while waiting for listen on peer response".into());
             }
         }
+    }
+
+    pub async fn get_listen_addr(&self, timeout: u64) -> Result<Vec<String>, Box<dyn Error>> {
+        let (tx, rx) = oneshot::channel();
+        let command = P2pCommand::GetListenAddr { response_tx: tx };
+        self.command_tx.send(command).await?;
+        tokio::select! {
+            res = rx => {
+                match res {
+                    Ok(res) => return Ok(res),
+                    _ => {
+                        tracing::error!("Failed to listen on peer");
+                        return Err("Failed to listen on peer".into());
+                    }
+                }
+            },
+            _ = tokio::time::sleep(Duration::from_secs(timeout)) => {
+                tracing::error!("Timeout while waiting for listen on peer response");
+                return Err("Timeout while waiting for listen on peer response".into());
+            }
+        }
+    }
+
+    pub async fn is_listening(&self, timeout: u64) -> Result<bool, Box<dyn Error>> {
+        let listen_addrs = self.get_listen_addr(timeout).await?;
+        Ok(listen_addrs.iter().any(|addr| addr.contains("p2p-circuit")))
     }
 
     async fn swarm_event_loop(
@@ -355,6 +409,11 @@ impl P2PTransport {
                     P2pStatus::NotConnected
                 };
                 let _ = response_tx.send(status);
+            }
+            P2pCommand::GetListenAddr { response_tx } => {
+                let listen_addrs: Vec<String> =
+                    swarm.listeners().map(|addr| addr.to_string()).collect();
+                let _ = response_tx.send(listen_addrs);
             }
             P2pCommand::ConnectToRelay { response_tx } => {
                 if Self::is_relay_connected(&swarm, &relay_addr.to_string()) {
@@ -456,7 +515,9 @@ impl P2PTransport {
                 response_tx,
             } => {
                 tracing::info!("File send request: is starting : {:?}", src_path);
-                if !Self::is_listen_peer_via_relay(swarm) {
+                let listen_addrs: Vec<String> =
+                    swarm.listeners().map(|addr| addr.to_string()).collect();
+                if !listen_addrs.iter().any(|addr| addr.contains("p2p-circuit")) {
                     tracing::error!("Swarm is not listening while SendFileOpen");
                     let _ = response_tx.send(Err("Failed to listen via relay".into()));
                     return;
@@ -518,7 +579,10 @@ impl P2PTransport {
         Ok(())
     }
 
-    async fn init_swarm(secret_key_seed: &str) -> Result<Swarm<Behaviour>, Box<dyn Error>> {
+    async fn init_swarm(
+        secret_key_seed: &str,
+        relay_addr: &mut Multiaddr,
+    ) -> Result<Swarm<Behaviour>, Box<dyn Error>> {
         let _ = tracing_subscriber::fmt()
             .with_env_filter(EnvFilter::from_default_env())
             .try_init();
@@ -531,8 +595,8 @@ impl P2PTransport {
                     noise::Config::new,
                     yamux::Config::default,
                 )?
-                .with_quic()
-                .with_dns()?
+                // .with_quic()
+                // .with_dns()?
                 .with_relay_client(noise::Config::new, yamux::Config::default)?
                 .with_behaviour(|keypair, relay_behaviour| Behaviour {
                     relay_client: relay_behaviour,
@@ -559,10 +623,17 @@ impl P2PTransport {
                     //     Default::default(),
                     // ),
                 })?
-                .with_swarm_config(|c| c.with_idle_connection_timeout(Duration::from_secs(60)))
+                .with_swarm_config(|c|
+                    // @@ TODO : config test
+                    c.with_idle_connection_timeout(Duration::from_secs(SWARM_IDLE_TIMEOUT))
+                    .with_per_connection_event_buffer_size(SWARM_CONN_BUF_SIZE)
+                    .with_max_negotiating_inbound_streams(SWARM_MAX_NEGOTIATING_INBOUND_STREAMS)
+                    .with_notify_handler_buffer_size(NonZero::new(SWARM_NOTIFY_BUF_SIZE).expect("SWARM_NOTIFY_BUF_SIZE must be NonZero"))
+                )
                 .build();
-        swarm.listen_on("/ip4/0.0.0.0/udp/0/quic-v1".parse()?)?;
+        // swarm.listen_on("/ip4/0.0.0.0/udp/0/quic-v1".parse()?)?;
         swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+
         block_on(async {
             let mut delay =
                 futures_timer::Delay::new(std::time::Duration::from_secs(INIT_LISTEN_DELAY)).fuse();
@@ -582,6 +653,7 @@ impl P2PTransport {
                 }
             }
         });
+        // swarm.listen_on(relay_addr.clone().with(Protocol::P2pCircuit))?;
         Ok(swarm)
     }
 
@@ -799,7 +871,7 @@ impl P2PTransport {
                             tracing::info!("Received file from {:?}: {}", peer, response.file_name);
                             // let file_path = base_dir_path.join(&response.file_name);
                             if let Ok(mut file_path) = PathBuf::from_str(&response.tgt_path) {
-                                file_path = file_path.join(&response.file_name);
+                                // file_path = file_path.join(&response.file_name);
                                 // if tokio::fs::write(&file_path, &response.content)
                                 if tokio::fs::write(&file_path, &response.content)
                                     .await
@@ -858,7 +930,6 @@ impl P2PTransport {
         Result::Ok(())
     }
 }
-
 
 pub async fn run_cli_command(
     client: &mut P2PTransport,
@@ -973,6 +1044,26 @@ pub async fn run_cli_command(
             let res = client.listen_on_peer(5).await;
             match res {
                 Ok(_) => println!("Listening on peer"),
+                Err(e) => eprintln!("Failed to listen on peer: {}", e),
+            }
+        }
+        "liss" => {
+            let res = client.get_listen_addr(5).await;
+            match res {
+                Ok(addrs) => {
+                    println!("Listening on peer ({})", addrs.len());
+                    for addr in addrs {
+                        println!("  - {:?}", addr);
+                    }
+                }
+                Err(e) => eprintln!("Failed to listen on peer: {}", e),
+            }
+        }
+        "lis_check" => {
+            let res = client.is_listening(5).await;
+            match res {
+                Ok(true) => println!("Listening on peer"),
+                Ok(false) => println!("Not listening on peer"),
                 Err(e) => eprintln!("Failed to listen on peer: {}", e),
             }
         }
