@@ -1,5 +1,3 @@
-use crate::constant::EventMsg;
-use clap::Parser;
 use futures::StreamExt;
 use kudrive_common::p2p::generate_ed25519;
 use libp2p::{
@@ -9,18 +7,57 @@ use libp2p::{
     tcp, yamux,
 };
 use std::error::Error;
-use std::net::{Ipv4Addr, Ipv6Addr};
-use tokio::{select, sync::mpsc};
+use std::net::Ipv4Addr;
+use tokio::{
+    io::{self, AsyncBufReadExt as _},
+    select,
+    sync::mpsc,
+};
 use tracing_subscriber::EnvFilter;
 
-const P2P_ID: &str = "KudriveRelay";
+const P2P_ID: &str = "0";
+const PORT: u16 = 4001;
 
-pub async fn p2p_relay_run(mut event_msg: mpsc::Receiver<EventMsg>) -> Result<(), Box<dyn Error>> {
+pub enum P2PCommand {
+    Exit,
+    StrMsg(String),
+}
+
+pub async fn p2p_test_run() {
+    let (tx, rx) = tokio::sync::mpsc::channel(32);
+    tokio::task::spawn(async {
+        let _ = p2p_relay_run(rx, 4001).await;
+    });
+    let mut stdin = io::BufReader::new(io::stdin()).lines();
+    loop {
+        tokio::select! {
+            Ok(Some(line)) = stdin.next_line() => {
+                match line.as_str() {
+                    "exit" => {
+                        tx.send(P2PCommand::Exit).await.unwrap();
+                        break;
+                    }
+                    "" => {}
+                    _ => {
+                        tx.send(P2PCommand::StrMsg(line.clone())).await.unwrap();
+                    }
+                }
+            }
+            _ = tokio::signal::ctrl_c() => {
+                println!("Ctrl+C input Returning...");
+                return;
+            }
+        }
+    }
+}
+
+pub async fn p2p_relay_run(
+    mut event_msg: mpsc::Receiver<P2PCommand>,
+    port: u16,
+) -> Result<(), Box<dyn Error>> {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .try_init();
-
-    let opt = Opt::parse();
 
     let local_key: identity::Keypair = generate_ed25519(P2P_ID);
 
@@ -44,21 +81,15 @@ pub async fn p2p_relay_run(mut event_msg: mpsc::Receiver<EventMsg>) -> Result<()
         .build();
 
     let listen_addr_tcp = Multiaddr::empty()
-        .with(match opt.use_ipv6 {
-            Some(true) => Protocol::from(Ipv6Addr::UNSPECIFIED),
-            _ => Protocol::from(Ipv4Addr::UNSPECIFIED),
-        })
-        .with(Protocol::Tcp(opt.port));
+        .with(Protocol::from(Ipv4Addr::UNSPECIFIED))
+        .with(Protocol::Tcp(port));
     swarm.listen_on(listen_addr_tcp.clone())?;
 
-    let listen_addr_quic = Multiaddr::empty()
-        .with(match opt.use_ipv6 {
-            Some(true) => Protocol::from(Ipv6Addr::UNSPECIFIED),
-            _ => Protocol::from(Ipv4Addr::UNSPECIFIED),
-        })
-        .with(Protocol::Udp(opt.port))
-        .with(Protocol::QuicV1);
-    swarm.listen_on(listen_addr_quic.clone())?;
+    // let listen_addr_quic = Multiaddr::empty()
+    //     .with(Protocol::from(Ipv4Addr::UNSPECIFIED))
+    //     .with(Protocol::Udp(port))
+    //     .with(Protocol::QuicV1);
+    // swarm.listen_on(listen_addr_quic.clone())?;
 
     loop {
         select! {
@@ -82,18 +113,18 @@ pub async fn p2p_relay_run(mut event_msg: mpsc::Receiver<EventMsg>) -> Result<()
             },
             Some(msg) = event_msg.recv() => {
                 match msg {
-                    EventMsg::EXIT =>{
+                    P2PCommand::Exit =>{
                         println!("main-thread invoked EXIT");
                         break;
                     }
-                    EventMsg::STR_MSG(msg) => {
+                    P2PCommand::StrMsg(msg) => {
                         println!("from main-thread: \"{}\"", msg);
-                        if msg == "1" {
+                        if msg == "info" {
                             println!("external_addresses:");
                             for a in swarm.external_addresses() {
                                 println!("{:?}", a);
                             }
-                            println!("relay listen address: \n\t-\"{}\"\n\t-\"{}\"", listen_addr_tcp, listen_addr_quic);
+                            println!("relay listen address: \"{}\"", listen_addr_tcp);
                             println!("local peer id : {:?}",swarm.local_peer_id() );
                         } else {}
                     }
@@ -110,20 +141,4 @@ struct Behaviour {
     ping: ping::Behaviour,
     identify: identify::Behaviour,
     dcutr: dcutr::Behaviour,
-}
-
-#[derive(Debug, Parser)]
-#[clap(name = "libp2p relay")]
-struct Opt {
-    /// Determine if the relay listen on ipv6 or ipv4 loopback address. the default is ipv4
-    #[clap(long)]
-    use_ipv6: Option<bool>,
-
-    /// Fixed value to generate deterministic peer id
-    #[clap(long)]
-    secret_key_seed: u8,
-
-    /// The port used to listen on all interfaces
-    #[clap(long)]
-    port: u16,
 }

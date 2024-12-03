@@ -1,27 +1,16 @@
-use kudrive_common::{ClientInfo, DirTree, Server};
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+pub mod p2p;
+use clap::Parser;
 
-struct MyServer {
-    clients: Arc<RwLock<HashMap<ClientInfo, DirTree>>>,
-}
-
-impl MyServer {
-    async fn init(&self) {
-        println!("Starting server...");
-        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-        println!("Server shutdown...");
-    }
+#[derive(Debug, Parser)]
+struct Opts {
+    #[clap(long)]
+    test_p2p: bool,
 }
 
 #[tokio::main]
 async fn main() {
-    let server = MyServer {
-        clients: Arc::new(RwLock::new(HashMap::new())),
-    };
-
-    server.init().await;
-
-    println!("Done!");
+    let opts: Opts = Opts::parse();
+    if opts.test_p2p {
+        p2p::p2p_test_run().await;
+    }
 }
