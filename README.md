@@ -67,6 +67,10 @@ cargo watch -x 'run --bin kudrive-client'
 # Format
 cargo fmt
 cargo watch -x fmt -x 'run --bin kudrive-client'
+
+# Test
+# RUST_LOG=debug, RUST_BACKTRACE=1
+RUST_LOG=info cargo test
 ```
 
 ## Cross-Compile Notes
