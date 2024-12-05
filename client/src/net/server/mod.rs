@@ -1,4 +1,3 @@
-use std::net::Ipv4Addr;
 use std::sync::Arc;
 
 use kudrive_common::event::client::{ClientEvent, ServerMessage};
@@ -8,6 +7,8 @@ use tokio::io::{self, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
+
+use crate::config_loader::get_config;
 
 pub struct Server {
     stream: Option<Arc<Mutex<TcpStream>>>,
@@ -29,8 +30,8 @@ impl Server {
     }
 
     pub async fn connect(&mut self, sender: Sender<ClientEvent>) -> io::Result<()> {
-        // TODO: server address configuration
-        let address = format!("{}:{}", Ipv4Addr::LOCALHOST, 7878);
+        let config = get_config();
+        let address = format!("{}:{}", config.server.domain, config.server.port);
 
         // create tcp stream
         let stream = TcpStream::connect(address).await?;

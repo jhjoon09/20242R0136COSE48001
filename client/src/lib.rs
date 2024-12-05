@@ -26,6 +26,10 @@ pub async fn init() {
     let mut handler = GLOBAL_STATE.lock().await;
     handler.start().await;
     drop(handler);
+
+    // tokio::spawn(async move {
+    //     event_loop().await.unwrap();
+    // });
 }
 
 pub async fn event_loop() -> Result<(), Box<dyn Error>> {

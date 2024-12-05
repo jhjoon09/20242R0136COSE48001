@@ -1,4 +1,5 @@
 use crate::{
+    config_loader::get_config,
     file_server::FileServer,
     net::{p2p::P2PTransport, server::Server},
 };
@@ -11,7 +12,7 @@ use kudrive_common::{
         server::ClientMessage,
     },
     util::Pendings,
-    Client,
+    Client, FileMap,
 };
 use tokio::sync::{
     mpsc::{self, error::TryRecvError, Receiver, Sender},
@@ -75,11 +76,25 @@ impl ClientHandler {
         self.send_event(event).await;
     }
 
+    async fn register(&mut self) {
+        let config = &get_config();
+        let client = Client {
+            group: config.id.group_id,
+            id: config.id.my_id,
+            nickname: config.id.nickname.clone(),
+            files: FileMap { files: vec![] },
+        };
+
+        let message = ClientMessage::Register { client };
+        self.transmit(message).await;
+    }
+
     pub async fn start(&mut self) {
         if let Err(e) = self.server.connect(self.sender()).await {
             eprintln!("Failed to connect to server: {:?}", e);
             return;
         }
+        self.register().await;
 
         self.file_server.start().await;
         self.p2p_transport.connect().await;
