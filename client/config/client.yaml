@@ -1,0 +1,12 @@
+server :
+  domain : 
+  port : 
+file:
+  workspace :  
+  refresh_time : 
+  ignore_list : 
+
+id :
+  group_id : 
+  my_id : 
+  nickname : 

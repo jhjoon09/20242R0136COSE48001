@@ -11,23 +11,24 @@ use kudrive_common::{
         server::ClientMessage,
     },
     util::Pendings,
+    Client,
 };
 use tokio::sync::{
     mpsc::{self, error::TryRecvError, Receiver, Sender},
     oneshot,
 };
 
-pub struct Client {
+pub struct ClientHandler {
     sender: Sender<ClientEvent>,
     receiver: Receiver<ClientEvent>,
     pub file_server: FileServer,
     pub server: Server,
     pub p2p_transport: P2PTransport,
     pendings: Pendings<oneshot::Sender<Consequence>>,
-    clients: (),
+    clients: Vec<Client>,
 }
 
-impl Client {
+impl ClientHandler {
     pub fn new() -> Self {
         // create event channel
         let channel = mpsc::channel::<ClientEvent>(1024);
@@ -36,11 +37,11 @@ impl Client {
         Self {
             server: Server::new(),
             file_server: FileServer::new(sender.clone()),
-            p2p_transport: P2PTransport::new(sender.clone()),
+            p2p_transport: P2PTransport::new(),
             sender,
             receiver,
             pendings: Pendings::new(),
-            clients: (),
+            clients: Vec::new(),
         }
     }
 
@@ -52,7 +53,7 @@ impl Client {
         self.receiver.try_recv()
     }
 
-    fn set_clients(&mut self, clients: ()) {
+    fn set_clients(&mut self, clients: Vec<Client>) {
         self.clients = clients;
     }
 
@@ -61,15 +62,11 @@ impl Client {
     }
 
     async fn send_event(&self, event: ClientEvent) {
-        let responder = self.sender();
-
-        tokio::spawn(async move {
-            responder.send(event).await.unwrap();
-        });
+        self.sender.send(event).await.unwrap();
     }
 
     async fn get_clients(&self, id: u64) {
-        let clients = self.clients;
+        let clients = self.clients.clone();
         let consequence = Consequence::Clients {
             result: Ok(clients),
         };
@@ -108,14 +105,6 @@ impl Client {
                         // TODO: implement clients update
                         self.set_clients(clients);
                     }
-                    ServerMessage::FoundPeer { id, peer } => {
-                        let event = ClientEvent::Consequence {
-                            id,
-                            consequence: Consequence::FindPeer { result: Ok(peer) },
-                        };
-                        // TODO: test peer connection with server
-                        self.send_event(event).await;
-                    }
                 }
             }
             ClientEvent::FileMapUpdate { file_map } => {
@@ -127,16 +116,6 @@ impl Client {
                 println!("Received command: {:?}", command);
                 let id = self.pendings.insert(responder);
                 match command {
-                    Command::FindPeer { target } => {
-                        let message = ClientMessage::FindPeer { target };
-                        self.transmit(message).await;
-                    }
-                    Command::FileSend { peer, from, to } => {
-                        self.p2p_transport.send_file(id, peer, from, to).await;
-                    }
-                    Command::FileReceive { peer, from, to } => {
-                        self.p2p_transport.receive_file(id, peer, from, to).await;
-                    }
                     Command::Clients {} => {
                         self.get_clients(id).await;
                     }

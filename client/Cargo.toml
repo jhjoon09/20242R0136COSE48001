@@ -11,3 +11,9 @@ async-trait = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 bytes = { workspace = true }
+walkdir = "2.5.0"
+notify = "7.0.0"
+regex = "1.11.1"
+lazy_static = "1.5.0"
+uuid.workspace = true
+serde_yaml = "0.9.34"
