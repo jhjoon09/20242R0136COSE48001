@@ -1,5 +1,7 @@
 use std::time::SystemTime;
 
+use crate::Client;
+
 use super::super::super::fs::FileMap;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -9,8 +11,8 @@ use super::Message;
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ClientMessage {
     HealthCheck { timestamp: SystemTime },
+    Register { client: Client },
     FileMapUpdate { file_map: FileMap },
-    FindPeer { target: String },
 }
 
 impl Message for ClientMessage {

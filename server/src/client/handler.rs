@@ -3,7 +3,7 @@ use std::sync::Arc;
 use kudrive_common::{
     event::server::{ClientMessage, MetaEvent, ServerEvent},
     tcp::transmitter,
-    Client, Listener, Transmitter,
+    Client, FileMap, Listener, Transmitter,
 };
 use tokio::{
     net::TcpStream,
@@ -38,6 +38,29 @@ impl ClientHandler {
         }
     }
 
+    async fn register(&mut self, client: Client) {
+        let Client { group, id, .. } = client.clone();
+        let event = MetaEvent::Register { group, id };
+
+        self.info = Some(client);
+        self.meta.send(event).await.unwrap();
+    }
+
+    async fn update(&mut self, file_map: FileMap) {
+        if let Some(ref client) = self.info {
+            let event = MetaEvent::Propagation {
+                group: client.group,
+            };
+
+            self.info = Some(Client {
+                files: file_map,
+                ..client.clone()
+            });
+
+            self.meta.send(event).await.unwrap()
+        }
+    }
+
     fn try_receive(&mut self) -> Result<ServerEvent, TryRecvError> {
         self.receiver.try_recv()
     }
@@ -50,7 +73,15 @@ impl ClientHandler {
         };
 
         match event {
-            _ => {}
+            ServerEvent::Message { message } => match message {
+                ClientMessage::Register { client } => {
+                    self.register(client).await;
+                }
+                ClientMessage::FileMapUpdate { file_map } => {
+                    self.update(file_map).await;
+                }
+                _ => {}
+            },
         };
 
         Ok(())
