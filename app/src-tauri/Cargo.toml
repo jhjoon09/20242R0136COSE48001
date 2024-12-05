@@ -1,5 +1,3 @@
-[workspace]
-
 [package]
 name = "ku-drive"
 version = "0.1.0"
@@ -22,8 +20,11 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
 tauri-plugin-fs = "2"
 dirs = "5.0.1"
-
+kudrive-client = { path = "../../client" }
+tokio = { workspace = true }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing.workspace = true
