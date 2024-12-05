@@ -43,6 +43,7 @@ cargo build -p kudrive-server
 cargo build -p kudrive-client
 
 # For tauri
+cargo install tauri-cli
 cd app
 cargo tauri build
 ```

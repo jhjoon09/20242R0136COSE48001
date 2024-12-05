@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-extern crate dirs;
+use dirs;
+use kudrive_client::init as client_init;
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 
 static mut NICKNAME: Option<String> = None;
