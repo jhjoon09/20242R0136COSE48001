@@ -1,5 +1,8 @@
 pub use crate::message::client::ClientMessage;
 
+mod meta;
+pub use meta::MetaEvent;
+
 use super::Event;
 
 #[derive(Debug)]
