@@ -41,6 +41,10 @@ cargo build -p kudrive-server
 
 # For kudrive-client
 cargo build -p kudrive-client
+
+# For tauri
+cd app
+cargo tauri build
 ```
 
 ### Run
@@ -51,6 +55,10 @@ cargo run --bin kudrive-server
 
 # For kudrive-client
 cargo build --bin kudrive-client
+
+# For tauri
+cd app
+cargo tauri dev
 ```
 
 ### Dev
@@ -71,6 +79,9 @@ cargo watch -x fmt -x 'run --bin kudrive-client'
 # Test
 # RUST_LOG=debug, RUST_BACKTRACE=1
 RUST_LOG=info cargo test
+
+# tauri
+cargo tauri info
 ```
 
 ## Cross-Compile Notes
