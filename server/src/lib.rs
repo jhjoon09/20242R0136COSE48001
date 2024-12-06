@@ -1,6 +1,7 @@
 pub mod client;
+pub mod event;
 
-use kudrive_common::event::server::MetaEvent;
+use event::MetaEvent;
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},

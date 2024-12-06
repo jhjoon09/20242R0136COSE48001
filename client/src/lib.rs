@@ -11,10 +11,8 @@ use std::{
 
 use client::handler::ClientHandler;
 use kudrive_common::{
-    event::{
-        client::{ClientEvent, Command, Consequence},
-        server::ClientMessage,
-    },
+    event::client::{ClientEvent, Command, Consequence},
+    message::client::ClientMessage,
     Client,
 };
 use tokio::sync::{oneshot, Mutex};

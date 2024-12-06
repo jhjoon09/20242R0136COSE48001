@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
 use kudrive_common::{
-    event::server::{ClientMessage, MetaEvent, ServerEvent},
-    tcp::transmitter,
-    Client, FileMap, Listener, Transmitter,
+    event::client::ServerMessage, message::client::ClientMessage, tcp::transmitter, Client,
+    FileMap, Listener, Transmitter,
 };
 use tokio::{
     net::TcpStream,
@@ -12,6 +11,8 @@ use tokio::{
         Mutex,
     },
 };
+
+use crate::event::{MetaEvent, PeerEvent, ServerEvent};
 
 pub struct ClientHandler {
     info: Option<Client>,

@@ -1,11 +1,9 @@
-pub use crate::message::client::ClientMessage;
-
 mod meta;
+
+use kudrive_common::{event::Event, message::client::ClientMessage};
 pub use meta::MetaEvent;
 
-use super::Event;
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ServerEvent {
     Message { message: ClientMessage },
     // TODO: other events

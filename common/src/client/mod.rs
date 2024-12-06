@@ -10,8 +10,3 @@ pub struct Client {
     pub nickname: String,
     pub files: FileMap,
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Peer {
-    // TODO: Add more fields
-}

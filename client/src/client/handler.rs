@@ -4,13 +4,11 @@ use crate::{
     net::{p2p::P2PTransport, server::Server},
 };
 use kudrive_common::{
-    event::{
-        client::{
-            command::{Command, Consequence},
-            ClientEvent, ServerMessage,
-        },
-        server::ClientMessage,
+    event::client::{
+        command::{Command, Consequence},
+        ClientEvent, ServerMessage,
     },
+    message::client::ClientMessage,
     util::Pendings,
     Client, FileMap,
 };
