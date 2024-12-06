@@ -49,4 +49,25 @@ impl ClientGroup {
                 *id
             })
     }
+
+    fn send(&self, sender: &Sender<ServerEvent>, event: &ServerEvent) {
+        let sender = sender.clone();
+        let event = event.clone();
+
+        tokio::spawn(async move {
+            let _ = sender.send(event).await;
+        });
+    }
+
+    pub async fn unicast(&self, id: Uuid, event: ServerEvent) {
+        if let Some(sender) = self.senders.get(&id) {
+            self.send(sender, &event);
+        }
+    }
+
+    pub async fn broadcast(&self, event: ServerEvent) {
+        for sender in self.senders.values() {
+            self.send(sender, &event);
+        }
+    }
 }

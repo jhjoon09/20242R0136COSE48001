@@ -1,6 +1,12 @@
-use uuid::Uuid;
+use tokio::sync::mpsc::Sender;
+
+use crate::Client;
+
+use super::ServerEvent;
 
 pub enum MetaEvent {
-    Propagation { group: Uuid },
-    Register { group: Uuid, id: Uuid },
+    Register {
+        client: Client,
+        sender: Sender<ServerEvent>,
+    },
 }

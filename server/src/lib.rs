@@ -5,7 +5,7 @@ use event::MetaEvent;
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{mpsc, Mutex},
+    sync::{mpsc, Mutex, RwLock},
 };
 use uuid::Uuid;
 
@@ -24,7 +24,6 @@ impl Server {
 
     async fn spawn(&mut self, stream: TcpStream, sender: mpsc::Sender<MetaEvent>) {
         let handler = Arc::new(Mutex::new(ClientHandler::new(stream, sender)));
-        self.connect(handler.clone()).await;
 
         tokio::spawn(async move {
             let handler = handler.clone();
@@ -36,10 +35,6 @@ impl Server {
                 drop(handler);
             }
         });
-    }
-
-    async fn connect(&mut self, handler: Arc<Mutex<ClientHandler>>) {
-        self.clients.entry(None).or_insert(vec![]).push(handler);
     }
 
     async fn register(&mut self, group: Uuid, id: Uuid) {
@@ -64,12 +59,7 @@ impl Server {
                     }
                     Some(event) = receiver.recv() => {
                         match event {
-                            MetaEvent::Register { group, id } => {
-                                self.register(group, id).await;
-                            }
-                            MetaEvent::Propagation { group } => {
-                                self.propagate(group).await;
-                        }
+                            _ => {}
                     }
                 }
             }

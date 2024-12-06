@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use kudrive_common::{
-    message::client::ClientMessage, tcp::transmitter, Client, FileMap, Listener, Transmitter,
+    event::client::ServerMessage, message::client::ClientMessage, tcp::transmitter, Client,
+    FileMap, Listener, Transmitter,
 };
 use tokio::{
     net::TcpStream,
@@ -11,7 +12,7 @@ use tokio::{
     },
 };
 
-use crate::event::{MetaEvent, ServerEvent};
+use crate::event::{MetaEvent, PeerEvent, ServerEvent};
 
 use super::group::ClientGroup;
 
@@ -69,6 +70,21 @@ impl ClientHandler {
         }
     }
 
+    async fn transmit(&mut self, message: ServerMessage) {
+        self.transmitter.send(message).await.unwrap();
+    }
+
+    async fn propagate(&mut self) {
+        if let Some(group) = &self.group {
+            let lock = group.read().await;
+            let clients = lock.flatten();
+            drop(lock);
+
+            let message = ServerMessage::ClientsUpdate { clients };
+            self.transmit(message).await;
+        }
+    }
+
     fn try_receive(&mut self) -> Result<ServerEvent, TryRecvError> {
         self.receiver.try_recv()
     }
@@ -83,12 +99,23 @@ impl ClientHandler {
         match event {
             ServerEvent::Message { message } => match message {
                 ClientMessage::Register { client } => {
+                    println!("Registering client: {:?}", client);
                     self.register(client).await;
                 }
                 ClientMessage::FileMapUpdate { file_map } => {
+                    println!("Updating file map: {:?}", file_map);
                     self.update(file_map).await;
                 }
                 _ => {}
+            },
+            ServerEvent::PeerEvent { event } => match event {
+                PeerEvent::Update {} => {
+                    println!("Propagating file map update");
+                    self.propagate().await;
+                }
+                PeerEvent::Group { group } => {
+                    self.group = Some(group);
+                }
             },
         };
 
