@@ -48,25 +48,34 @@ impl ClientHandler {
     }
 
     async fn register(&mut self, client: Client) {
-        let Client { group, id, .. } = client.clone();
-        let event = MetaEvent::Register { group, id };
+        self.client = Some(client.clone());
 
-        self.info = Some(client);
+        let event = MetaEvent::Register {
+            client: client,
+            sender: self.sender(),
+        };
+
         self.meta.send(event).await.unwrap();
     }
 
     async fn update(&mut self, file_map: FileMap) {
-        if let Some(ref client) = self.info {
-            let event = MetaEvent::Propagation {
-                group: client.group,
-            };
-
-            self.info = Some(Client {
+        if let Some(client) = &self.client {
+            let client = Client {
                 files: file_map,
                 ..client.clone()
-            });
+            };
+            self.client = Some(client.clone());
 
-            self.meta.send(event).await.unwrap()
+            if let Some(group) = &self.group {
+                let event = ServerEvent::PeerEvent {
+                    event: PeerEvent::Update {},
+                };
+
+                let mut lock = group.write().await;
+                lock.update(client);
+                lock.broadcast(event).await;
+                drop(lock);
+            }
         }
     }
 

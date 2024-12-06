@@ -1,11 +1,15 @@
 pub mod client;
 pub mod event;
 
-use event::MetaEvent;
+use event::{MetaEvent, PeerEvent, ServerEvent};
+use kudrive_common::Client;
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{mpsc, Mutex, RwLock},
+    sync::{
+        mpsc::{self},
+        Mutex, RwLock,
+    },
 };
 use uuid::Uuid;
 
@@ -37,12 +41,34 @@ impl Server {
         });
     }
 
-    async fn register(&mut self, group: Uuid, id: Uuid) {
-        // TODO: implement client registration
-    }
+    async fn register(&mut self, client: Client, sender: mpsc::Sender<ServerEvent>) {
+        // get target group
+        let Client { group, .. } = client;
+        let group = self
+            .groups
+            .entry(group)
+            .or_insert_with(|| Arc::new(RwLock::new(ClientGroup::new())));
 
-    async fn propagate(&mut self, group: Uuid) {
-        // TODO: implement client propagation
+        // send client its group
+        let event = ServerEvent::PeerEvent {
+            event: PeerEvent::Group {
+                group: group.clone(),
+            },
+        };
+        sender.send(event).await.unwrap();
+
+        // add client to group
+        let mut lock = group.write().await;
+        lock.insert(client, sender);
+        drop(lock);
+
+        // broadcast client register
+        let event = ServerEvent::PeerEvent {
+            event: PeerEvent::Update {},
+        };
+        let lock = group.write().await;
+        lock.broadcast(event).await;
+        drop(lock);
     }
 
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -53,13 +79,15 @@ impl Server {
 
         loop {
             tokio::select! {
-                    Ok((stream, addr)) = listener.accept() => {
-                        println!("Connection from: {}", addr);
-                        self.spawn(stream, sender.clone()).await;
-                    }
-                    Some(event) = receiver.recv() => {
-                        match event {
-                            _ => {}
+                Ok((stream, addr)) = listener.accept() => {
+                    println!("Connection from: {}", addr);
+                    self.spawn(stream, sender.clone()).await;
+                }
+                Some(event) = receiver.recv() => {
+                    match event {
+                        MetaEvent::Register { client, sender } => {
+                            self.register(client, sender).await;
+                        }
                     }
                 }
             }
