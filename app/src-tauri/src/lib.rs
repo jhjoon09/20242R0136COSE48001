@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use dirs;
 use kudrive_client::init as client_init;
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use tracing_subscriber::EnvFilter;
 
 static mut NICKNAME: Option<String> = None;
 static mut WORKSPACE: Option<String> = None;
@@ -120,9 +120,33 @@ fn send_file(from: String, id: String, dest : String) {
     println!("from {} to {} who {}", from , dest, id);
 }
 
+#[tauri::command]
+async fn print_async(input: i32) -> Result<String, String> {
+    tracing::info!("async input: {}", input);
+
+    // Some async fn call
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+    Ok(format!("return from async"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .try_init();
+
     tauri::Builder::default()
+        .setup(|app| {
+            tokio::task::spawn(async move {
+                loop {
+                    // Client core init here...
+                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                    tracing::info!("Hello from the background");
+                }
+            });
+            Ok(())
+        })
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
@@ -131,7 +155,8 @@ pub fn run() {
             init,
             get_files,
             get_destinations,
-            send_file
+            send_file,
+            print_async
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

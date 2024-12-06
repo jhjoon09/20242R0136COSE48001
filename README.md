@@ -59,7 +59,7 @@ cargo build --bin kudrive-client
 
 # For tauri
 cd app
-cargo tauri dev
+RUST_LOG=info cargo tauri dev
 ```
 
 ### Dev
