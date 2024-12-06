@@ -51,9 +51,33 @@ const Settings: React.FC = () => {
       <HomeButton />
       <h1>Settings</h1>
       <div>
-        <label>
-          Workspace Directory:
-        </label>
+        <button
+          onClick={() => {
+            invoke<string>('print_async', { input: 123 })
+              .then((res) => {
+                console.log('from rust test_async_from_rust fn :', res);
+              })
+              .catch((e) => {
+                console.error(e);
+              });
+          }}
+          style={{
+            position: 'relative', // 고정 위치 설정
+            top: '10px',
+            left: '10px',
+            padding: '10px 15px',
+            background: '#f44336',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer',
+          }}
+        >
+          TestAsyncFromRust
+        </button>
+      </div>
+      <div>
+        <label>Workspace Directory:</label>
         <button onClick={selectDirectory}>Select Directory</button>
         <p>Selected Directory: {workspace}</p>
       </div>
