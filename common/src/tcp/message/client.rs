@@ -8,7 +8,7 @@ use serde_json;
 
 use super::Message;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ClientMessage {
     HealthCheck { timestamp: SystemTime },
     Register { client: Client },

@@ -1,25 +1,27 @@
 use std::sync::Arc;
 
 use kudrive_common::{
-    event::client::ServerMessage, message::client::ClientMessage, tcp::transmitter, Client,
-    FileMap, Listener, Transmitter,
+    message::client::ClientMessage, tcp::transmitter, Client, FileMap, Listener, Transmitter,
 };
 use tokio::{
     net::TcpStream,
     sync::{
         mpsc::{self, error::TryRecvError, Receiver, Sender},
-        Mutex,
+        Mutex, RwLock,
     },
 };
 
-use crate::event::{MetaEvent, PeerEvent, ServerEvent};
+use crate::event::{MetaEvent, ServerEvent};
+
+use super::group::ClientGroup;
 
 pub struct ClientHandler {
-    info: Option<Client>,
+    client: Option<Client>,
+    group: Option<Arc<RwLock<ClientGroup>>>,
     meta: Sender<MetaEvent>,
+    sender: Sender<ServerEvent>,
     receiver: Receiver<ServerEvent>,
     transmitter: Transmitter,
-    listener: Listener<ClientMessage, ServerEvent>,
 }
 
 impl ClientHandler {
@@ -28,15 +30,20 @@ impl ClientHandler {
         let (sender, receiver) = mpsc::channel::<ServerEvent>(1024);
 
         let transmitter = transmitter::Transmitter::new(stream.clone());
-        let listener = Listener::spawn(stream.clone(), sender.clone());
+        let _listener = Listener::spawn(stream.clone(), sender.clone());
 
         Self {
-            info: None,
+            client: None,
+            group: None,
             meta,
+            sender,
             receiver,
             transmitter,
-            listener,
         }
+    }
+
+    fn sender(&self) -> Sender<ServerEvent> {
+        self.sender.clone()
     }
 
     async fn register(&mut self, client: Client) {

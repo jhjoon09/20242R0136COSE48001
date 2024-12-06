@@ -9,16 +9,16 @@ use tokio::{
 };
 use uuid::Uuid;
 
-use client::handler::ClientHandler;
+pub use client::{group::ClientGroup, handler::ClientHandler};
 
 pub struct Server {
-    clients: HashMap<Option<Uuid>, Vec<Arc<Mutex<ClientHandler>>>>,
+    groups: HashMap<Uuid, Arc<RwLock<ClientGroup>>>,
 }
 
 impl Server {
     pub async fn new() -> Self {
         Self {
-            clients: HashMap::new(),
+            groups: HashMap::new(),
         }
     }
 
