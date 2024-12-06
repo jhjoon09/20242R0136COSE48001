@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use kudrive_common::event::client::{ClientEvent, ServerMessage};
 use kudrive_common::message::client::ClientMessage;
+use kudrive_common::message::server::ServerMessage;
 use kudrive_common::{Listener, Transmitter};
 use tokio::io::{self, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -9,6 +9,7 @@ use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 
 use crate::config_loader::get_config;
+use crate::event::ClientEvent;
 
 pub struct Server {
     stream: Option<Arc<Mutex<TcpStream>>>,

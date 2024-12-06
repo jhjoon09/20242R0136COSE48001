@@ -1,14 +1,11 @@
 use crate::{
     config_loader::get_config,
+    event::{ClientEvent, Command, Consequence},
     file_server::FileServer,
     net::{p2p::P2PTransport, server::Server},
 };
 use kudrive_common::{
-    event::client::{
-        command::{Command, Consequence},
-        ClientEvent, ServerMessage,
-    },
-    message::client::ClientMessage,
+    message::{client::ClientMessage, server::ServerMessage},
     util::Pendings,
     Client, FileMap,
 };

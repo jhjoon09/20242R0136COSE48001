@@ -1,6 +1,7 @@
 // lib.rs
 pub mod client;
 pub mod config_loader;
+pub mod event;
 pub mod file_server;
 pub mod net;
 
@@ -10,11 +11,8 @@ use std::{
 };
 
 use client::handler::ClientHandler;
-use kudrive_common::{
-    event::client::{ClientEvent, Command, Consequence},
-    message::client::ClientMessage,
-    Client,
-};
+use event::{ClientEvent, Command, Consequence};
+use kudrive_common::{message::client::ClientMessage, Client};
 use tokio::sync::{oneshot, Mutex};
 
 static GLOBAL_STATE: LazyLock<Arc<Mutex<ClientHandler>>> =
