@@ -89,6 +89,21 @@ impl ClientHandler {
         }
     }
 
+    async fn remove(&mut self) {
+        if let Some(client) = &self.client {
+            if let Some(group) = &self.group {
+                let event = ServerEvent::PeerEvent {
+                    event: PeerEvent::Update {},
+                };
+
+                let mut lock = group.write().await;
+                lock.remove(client.id);
+                lock.broadcast(event).await;
+                drop(lock);
+            }
+        }
+    }
+
     async fn transmit(&mut self, message: ServerMessage) {
         self.transmitter.send(message).await.unwrap();
     }
@@ -140,7 +155,7 @@ impl ClientHandler {
                 }
             },
             ServerEvent::Unhealthy {} => {
-                println!("Client is unhealthy");
+                self.remove().await;
             }
         };
 
