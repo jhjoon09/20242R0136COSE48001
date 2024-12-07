@@ -34,7 +34,7 @@ impl Server {
             loop {
                 let mut handler = handler.lock().await;
                 if let Err(_) = handler.event_listen().await {
-                    // TODO: handle client error
+                    break;
                 }
                 drop(handler);
             }

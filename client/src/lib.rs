@@ -81,9 +81,3 @@ pub async fn shutdown() {
     handler.shutdown().await;
     drop(handler);
 }
-
-pub async fn send_event(event: ClientMessage) {
-    let mut handler = GLOBAL_STATE.lock().await;
-    handler.server.transmit(event).await.unwrap();
-    drop(handler);
-}

@@ -58,7 +58,9 @@ impl ClientHandler {
     }
 
     async fn transmit(&mut self, message: ClientMessage) {
-        self.server.transmit(message).await.unwrap();
+        if let Err(_) = self.server.transmit(message).await {
+            self.sender.send(ClientEvent::Unhealthy {}).await.unwrap();
+        }
     }
 
     async fn send_event(&self, event: ClientEvent) {

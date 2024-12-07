@@ -66,6 +66,8 @@ impl ClientHandler {
         };
 
         self.meta.send(event).await.unwrap();
+
+        self.health_checker.check().await;
     }
 
     async fn update(&mut self, file_map: FileMap) {
@@ -156,6 +158,7 @@ impl ClientHandler {
             },
             ServerEvent::Unhealthy {} => {
                 self.remove().await;
+                return Err(TryRecvError::Disconnected);
             }
         };
 
