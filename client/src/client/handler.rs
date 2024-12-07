@@ -1,11 +1,14 @@
+use std::time::Duration;
+
 use crate::{
     event::{ClientEvent, Command, Consequence},
     file_server::FileServer,
     net::{p2p::P2PTransport, server::Server},
 };
 use kudrive_common::{
+    health::HealthChecker,
     message::{client::ClientMessage, server::ServerMessage},
-    util::Pendings,
+    pending::Pendings,
     Client,
 };
 use tokio::sync::{
@@ -16,7 +19,8 @@ use tokio::sync::{
 pub struct ClientHandler {
     sender: Sender<ClientEvent>,
     receiver: Receiver<ClientEvent>,
-    pub file_server: FileServer,
+    health_checker: Option<HealthChecker<ServerMessage, ClientEvent>>,
+    file_server: FileServer,
     pub server: Server,
     pub p2p_transport: P2PTransport,
     pendings: Pendings<oneshot::Sender<Consequence>>,
@@ -35,6 +39,7 @@ impl ClientHandler {
             p2p_transport: P2PTransport::new(),
             sender,
             receiver,
+            health_checker: None,
             pendings: Pendings::new(),
             clients: Vec::new(),
         }
@@ -71,6 +76,7 @@ impl ClientHandler {
     }
 
     async fn connect_server(&mut self) {
+        // connect to server
         loop {
             match self.server.connect(self.sender()).await {
                 Ok(_) => break,
@@ -79,6 +85,8 @@ impl ClientHandler {
                 }
             }
         }
+
+        // register to server
         loop {
             match self.server.register().await {
                 Ok(_) => break,
@@ -87,6 +95,15 @@ impl ClientHandler {
                 }
             }
         }
+
+        // spawn health checker
+        let health_checker = HealthChecker::spawn(
+            self.sender.clone(),
+            ClientEvent::Unhealthy {},
+            Duration::from_secs(5),
+        )
+        .await;
+        self.health_checker = Some(health_checker);
     }
 
     pub async fn start(&mut self) {
@@ -136,8 +153,10 @@ impl ClientHandler {
                 if let Some(responder) = self.pendings.remove(id) {
                     responder.send(consequence).unwrap();
                 }
-            } // TODO: implement clients broadcast message
-              // TODO: implement health check message
+            }
+            ClientEvent::Unhealthy {} => {
+                self.connect_server().await;
+            }
         };
         Ok(())
     }
