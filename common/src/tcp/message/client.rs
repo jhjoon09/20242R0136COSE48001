@@ -1,5 +1,3 @@
-use std::time::SystemTime;
-
 use crate::Client;
 
 use super::super::super::fs::FileMap;
@@ -10,7 +8,7 @@ use super::Message;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ClientMessage {
-    HealthCheck { timestamp: SystemTime },
+    HealthCheck {},
     Register { client: Client },
     FileMapUpdate { file_map: FileMap },
 }
@@ -21,9 +19,7 @@ impl Message for ClientMessage {
             Ok(message) => message,
             Err(e) => {
                 eprintln!("Failed to parse JSON data: {:?}", e);
-                ClientMessage::HealthCheck {
-                    timestamp: SystemTime::now(),
-                }
+                ClientMessage::HealthCheck {}
             }
         }
     }

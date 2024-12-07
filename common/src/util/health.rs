@@ -12,7 +12,7 @@ pub struct HealthChecker<U: Message, T: Event<U>> {
 }
 
 impl<U: Message, T: Event<U>> HealthChecker<U, T> {
-    fn new(alerter: Sender<T>, alert: T, timeout: Duration) -> Self {
+    pub fn new(alerter: Sender<T>, alert: T, timeout: Duration) -> Self {
         let (sender, mut receiver) = mpsc::channel::<bool>(1024);
 
         tokio::spawn(async move {
@@ -56,11 +56,5 @@ impl<U: Message, T: Event<U>> HealthChecker<U, T> {
             tokio::time::sleep(timeout).await;
             sender.send(false).await
         });
-    }
-
-    pub async fn spawn(alerter: Sender<T>, alert: T, timeout: Duration) -> Self {
-        let checker = Self::new(alerter, alert, timeout);
-        checker.check().await;
-        checker
     }
 }

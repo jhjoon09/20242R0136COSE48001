@@ -20,6 +20,8 @@ pub enum ClientEvent {
         id: u64,
         consequence: Consequence,
     },
+    Timer {},
+    Unhealthy {},
 }
 
 impl Event<ServerMessage> for ClientEvent {

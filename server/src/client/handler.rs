@@ -1,6 +1,7 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use kudrive_common::{
+    health::HealthChecker,
     message::{client::ClientMessage, server::ServerMessage},
     tcp::transmitter,
     Client, FileMap, Listener, Transmitter,
@@ -24,6 +25,7 @@ pub struct ClientHandler {
     sender: Sender<ServerEvent>,
     receiver: Receiver<ServerEvent>,
     transmitter: Transmitter,
+    health_checker: HealthChecker<ClientMessage, ServerEvent>,
 }
 
 impl ClientHandler {
@@ -34,6 +36,12 @@ impl ClientHandler {
         let transmitter = transmitter::Transmitter::new(stream.clone());
         let _listener = Listener::spawn(stream.clone(), sender.clone());
 
+        let health_checker = HealthChecker::new(
+            sender.clone(),
+            ServerEvent::Unhealthy {},
+            Duration::from_secs(5),
+        );
+
         Self {
             client: None,
             group: None,
@@ -41,6 +49,7 @@ impl ClientHandler {
             sender,
             receiver,
             transmitter,
+            health_checker,
         }
     }
 
@@ -108,6 +117,10 @@ impl ClientHandler {
 
         match event {
             ServerEvent::Message { message } => match message {
+                ClientMessage::HealthCheck {} => {
+                    self.health_checker.check().await;
+                    self.transmit(ServerMessage::HealthCheck {}).await;
+                }
                 ClientMessage::Register { client } => {
                     println!("Registering client: {:?}", client);
                     self.register(client).await;
@@ -116,7 +129,6 @@ impl ClientHandler {
                     println!("Updating file map: {:?}", file_map);
                     self.update(file_map).await;
                 }
-                _ => {}
             },
             ServerEvent::PeerEvent { event } => match event {
                 PeerEvent::Update {} => {
@@ -127,6 +139,9 @@ impl ClientHandler {
                     self.group = Some(group);
                 }
             },
+            ServerEvent::Unhealthy {} => {
+                println!("Client is unhealthy");
+            }
         };
 
         Ok(())

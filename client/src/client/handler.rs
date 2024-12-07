@@ -97,12 +97,12 @@ impl ClientHandler {
         }
 
         // spawn health checker
-        let health_checker = HealthChecker::spawn(
+        let health_checker = HealthChecker::new(
             self.sender.clone(),
             ClientEvent::Unhealthy {},
             Duration::from_secs(5),
-        )
-        .await;
+        );
+        health_checker.check().await;
         self.health_checker = Some(health_checker);
     }
 
@@ -111,6 +111,15 @@ impl ClientHandler {
 
         self.file_server.start().await;
         self.p2p_transport.connect().await;
+
+        // spawn health check send timer
+        let sender = self.sender.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                sender.send(ClientEvent::Timer {}).await.unwrap();
+            }
+        });
 
         println!("Client started.");
     }
@@ -126,11 +135,11 @@ impl ClientHandler {
             ClientEvent::Message { message } => {
                 println!("Received message: {:?}", message);
                 match message {
-                    ServerMessage::HealthCheck { timestamp } => {
-                        println!("Health check: {:?}", timestamp);
-                    }
+                    ServerMessage::HealthCheck {} => match self.health_checker {
+                        Some(ref mut health_checker) => health_checker.check().await,
+                        None => self.sender().send(ClientEvent::Unhealthy {}).await.unwrap(),
+                    },
                     ServerMessage::ClientsUpdate { clients } => {
-                        // TODO: implement clients update
                         self.set_clients(clients);
                     }
                 }
@@ -153,6 +162,10 @@ impl ClientHandler {
                 if let Some(responder) = self.pendings.remove(id) {
                     responder.send(consequence).unwrap();
                 }
+            }
+            ClientEvent::Timer {} => {
+                println!("Timer event.");
+                self.transmit(ClientMessage::HealthCheck {}).await;
             }
             ClientEvent::Unhealthy {} => {
                 self.connect_server().await;

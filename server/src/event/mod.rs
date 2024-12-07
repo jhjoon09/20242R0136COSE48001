@@ -18,6 +18,7 @@ pub enum PeerEvent {
 pub enum ServerEvent {
     Message { message: ClientMessage },
     PeerEvent { event: PeerEvent },
+    Unhealthy {},
     // TODO: other events
 }
 

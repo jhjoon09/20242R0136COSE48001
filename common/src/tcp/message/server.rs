@@ -1,5 +1,3 @@
-use std::time::SystemTime;
-
 use serde::{Deserialize, Serialize};
 use serde_json;
 
@@ -9,7 +7,7 @@ use super::Message;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerMessage {
-    HealthCheck { timestamp: SystemTime },
+    HealthCheck {},
     ClientsUpdate { clients: Vec<Client> },
 }
 
@@ -19,9 +17,7 @@ impl Message for ServerMessage {
             Ok(message) => message,
             Err(e) => {
                 eprintln!("Failed to parse JSON data: {:?}", e);
-                ServerMessage::HealthCheck {
-                    timestamp: SystemTime::now(),
-                }
+                ServerMessage::HealthCheck {}
             }
         }
     }
