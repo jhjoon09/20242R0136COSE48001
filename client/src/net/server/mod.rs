@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use kudrive_common::message::client::ClientMessage;
 use kudrive_common::message::server::ServerMessage;
-use kudrive_common::{Listener, Transmitter};
+use kudrive_common::{Client, FileMap, Listener, Transmitter};
 use tokio::io::{self, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Sender;
@@ -43,6 +43,19 @@ impl Server {
         self.listener = Some(Listener::spawn(self.clone_stream(), sender));
 
         Ok(())
+    }
+
+    pub async fn register(&mut self) -> io::Result<()> {
+        let config = &get_config();
+        let client = Client {
+            group: config.id.group_id,
+            id: config.id.my_id,
+            nickname: config.id.nickname.clone(),
+            files: FileMap { files: vec![] },
+        };
+
+        let message = ClientMessage::Register { client };
+        self.transmit(message).await
     }
 
     pub async fn disconnect(&mut self) -> io::Result<()> {
