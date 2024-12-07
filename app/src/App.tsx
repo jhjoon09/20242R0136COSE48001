@@ -7,6 +7,7 @@ import Send from "./files/Send.tsx";
 import Receive from "./files/Receive.tsx";
 import HomeButton from "./component/HomeButton.tsx";
 import Dest from "./files/Dest.tsx";
+import MyDest from "./files/MyDest.tsx";
 
 // 메인 페이지
 function MainPage() {
@@ -97,6 +98,7 @@ function App() {
       <Route path="/send" element={<Send />} />
       <Route path="/dest" element={<Dest />} />
       <Route path="/receive" element={<Receive />} />
+      <Route path="/my-dest" element={<MyDest />} />
     </Routes>
   );
 }

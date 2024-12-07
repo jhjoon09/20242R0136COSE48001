@@ -1,4 +1,5 @@
 use dirs;
+use std::collections::HashMap;
 use kudrive_client::init as client_init;
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use tracing_subscriber::EnvFilter;
@@ -121,6 +122,11 @@ fn send_file(from: String, id: String, dest : String) {
 }
 
 #[tauri::command]
+fn recive_file(id : String, from : String, dest : String) {
+    println!("from {} to {} who {}", from , dest, id);
+}
+
+#[tauri::command]
 async fn print_async(input: i32) -> Result<String, String> {
     tracing::info!("async input: {}", input);
 
@@ -156,6 +162,7 @@ pub fn run() {
             get_files,
             get_destinations,
             send_file,
+            recive_file,
             print_async
         ])
         .run(tauri::generate_context!())
