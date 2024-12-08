@@ -1,6 +1,6 @@
-use crate::Client;
+use crate::{Client, Peer};
 
-use super::super::super::fs::FileMap;
+use super::{super::super::fs::FileMap, FileClaim};
 use serde::{Deserialize, Serialize};
 use serde_json;
 
@@ -11,6 +11,7 @@ pub enum ClientMessage {
     HealthCheck {},
     Register { client: Client },
     FileMapUpdate { file_map: FileMap },
+    FileClaim { claim: FileClaim, peer: Peer },
 }
 
 impl Message for ClientMessage {

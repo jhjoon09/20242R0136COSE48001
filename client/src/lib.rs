@@ -14,6 +14,7 @@ use client::handler::ClientHandler;
 use event::{ClientEvent, Command, Consequence};
 use kudrive_common::{message::client::ClientMessage, Client};
 use tokio::sync::{oneshot, Mutex};
+use uuid::Uuid;
 
 static GLOBAL_STATE: LazyLock<Arc<Mutex<ClientHandler>>> =
     LazyLock::new(|| Arc::new(Mutex::new(ClientHandler::new())));
@@ -58,11 +59,11 @@ pub async fn execute_command(command: Command) -> Result<Consequence, String> {
     }
 }
 
-pub async fn file_send(nick: String, source: String, target: String) -> Result<(), String> {
+pub async fn file_send(id: Uuid, source: String, target: String) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn file_receive(nick: String, source: String, target: String) -> Result<(), String> {
+pub async fn file_receive(id: Uuid, source: String, target: String) -> Result<(), String> {
     Ok(())
 }
 

@@ -1,14 +1,15 @@
 use serde::{Deserialize, Serialize};
 use serde_json;
 
-use crate::Client;
+use crate::{Client, Peer};
 
-use super::Message;
+use super::{FileClaim, Message};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerMessage {
     HealthCheck {},
     ClientsUpdate { clients: Vec<Client> },
+    FileClaim { claim: FileClaim, peer: Peer },
 }
 
 impl Message for ServerMessage {

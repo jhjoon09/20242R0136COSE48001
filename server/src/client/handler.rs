@@ -146,6 +146,9 @@ impl ClientHandler {
                     println!("Updating file map: {:?}", file_map);
                     self.update(file_map).await;
                 }
+                ClientMessage::FileClaim { claim, peer } => {
+                    todo!();
+                }
             },
             ServerEvent::PeerEvent { event } => match event {
                 PeerEvent::Update {} => {

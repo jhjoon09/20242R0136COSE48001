@@ -144,6 +144,9 @@ impl ClientHandler {
                     ServerMessage::ClientsUpdate { clients } => {
                         self.set_clients(clients);
                     }
+                    ServerMessage::FileClaim { claim, peer } => {
+                        todo!();
+                    }
                 }
             }
             ClientEvent::FileMapUpdate { file_map } => {
