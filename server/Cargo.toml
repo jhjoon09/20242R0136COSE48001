@@ -12,3 +12,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 bytes = { workspace = true }
 uuid = { workspace = true }
+libp2p = { workspace = true }
+clap = { workspace = true }
+futures = "0.3.31"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing.workspace = true
