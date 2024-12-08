@@ -12,7 +12,7 @@ use std::{
 
 use client::handler::ClientHandler;
 use event::{ClientEvent, Command, Consequence};
-use kudrive_common::{message::client::ClientMessage, Client};
+use kudrive_common::{Client, Peer};
 use tokio::sync::{oneshot, Mutex};
 use uuid::Uuid;
 
@@ -60,11 +60,25 @@ pub async fn execute_command(command: Command) -> Result<Consequence, String> {
 }
 
 pub async fn file_send(id: Uuid, source: String, target: String) -> Result<(), String> {
-    Ok(())
+    let peer = Peer { id, source, target };
+    let command = Command::FileSend { peer: peer.clone() };
+
+    match execute_command(command).await {
+        Ok(Consequence::FileSend { result }) => result,
+        Ok(_) => Err("Unexpected consequence".to_string()),
+        Err(e) => Err(e),
+    }
 }
 
 pub async fn file_receive(id: Uuid, source: String, target: String) -> Result<(), String> {
-    Ok(())
+    let peer = Peer { id, source, target };
+    let command = Command::FileReceive { peer };
+
+    match execute_command(command).await {
+        Ok(Consequence::FileReceive { result }) => result,
+        Ok(_) => Err("Unexpected consequence".to_string()),
+        Err(e) => Err(e),
+    }
 }
 
 pub async fn clients() -> Result<Vec<Client>, String> {
