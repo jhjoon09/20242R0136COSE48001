@@ -7,7 +7,7 @@ use crate::{
 };
 use kudrive_common::{
     health::HealthChecker,
-    message::{client::ClientMessage, server::ServerMessage},
+    message::{client::ClientMessage, server::ServerMessage, FileClaim},
     pending::Pendings,
     Client,
 };
@@ -142,9 +142,14 @@ impl ClientHandler {
                 ServerMessage::ClientsUpdate { clients } => {
                     self.set_clients(clients);
                 }
-                ServerMessage::FileClaim { claim, peer } => {
-                    todo!();
-                }
+                ServerMessage::FileClaim { claim, peer } => match claim {
+                    FileClaim::SendClaim { pending } => {
+                        self.p2p_transport.send_open(false, pending, peer).await;
+                    }
+                    FileClaim::ReceiveClaim { pending } => {
+                        self.p2p_transport.receive(pending, peer).await;
+                    }
+                },
             },
             ClientEvent::FileMapUpdate { file_map } => {
                 // TODO: implement file map update
@@ -158,12 +163,35 @@ impl ClientHandler {
                     Command::Clients {} => {
                         self.get_clients(id).await;
                     }
+                    Command::FileSend { peer } => {
+                        self.p2p_transport.send_open(true, id, peer).await;
+                    }
+                    Command::FileReceive { peer } => {
+                        let message = ClientMessage::FileClaim {
+                            claim: FileClaim::SendClaim { pending: id },
+                            peer,
+                        };
+                        println!("Sending file claim: {:?}", message);
+                        self.transmit(message).await;
+                    }
                 }
             }
             ClientEvent::Consequence { id, consequence } => {
                 if let Some(responder) = self.pendings.remove(id) {
                     responder.send(consequence).unwrap();
                 }
+            }
+            ClientEvent::Opened { ids, convey } => {
+                let (wid, rid) = ids;
+                let (peer, rx) = convey;
+
+                let message = ClientMessage::FileClaim {
+                    claim: FileClaim::ReceiveClaim { pending: rid },
+                    peer: peer.clone(),
+                };
+                self.transmit(message).await;
+
+                self.p2p_transport.send_wait(wid, peer, rx).await;
             }
             ClientEvent::Timer {} => {
                 self.transmit(ClientMessage::HealthCheck {}).await;
