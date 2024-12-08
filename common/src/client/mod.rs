@@ -5,13 +5,15 @@ use crate::FileMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Client {
-    group: Uuid,
-    id: Uuid,
-    nickname: String,
-    files: FileMap,
+    pub group: Uuid,
+    pub id: Uuid,
+    pub nickname: String,
+    pub files: FileMap,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Peer {
-    // TODO: Add more fields
+    pub id: Uuid,
+    pub source: String,
+    pub target: String,
 }

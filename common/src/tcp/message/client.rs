@@ -1,16 +1,17 @@
-use std::time::SystemTime;
+use crate::{Client, Peer};
 
-use super::super::super::fs::FileMap;
+use super::{super::super::fs::FileMap, FileClaim};
 use serde::{Deserialize, Serialize};
 use serde_json;
 
 use super::Message;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ClientMessage {
-    HealthCheck { timestamp: SystemTime },
+    HealthCheck {},
+    Register { client: Client },
     FileMapUpdate { file_map: FileMap },
-    FindPeer { target: String },
+    FileClaim { claim: FileClaim, peer: Peer },
 }
 
 impl Message for ClientMessage {
@@ -19,9 +20,7 @@ impl Message for ClientMessage {
             Ok(message) => message,
             Err(e) => {
                 eprintln!("Failed to parse JSON data: {:?}", e);
-                ClientMessage::HealthCheck {
-                    timestamp: SystemTime::now(),
-                }
+                ClientMessage::HealthCheck {}
             }
         }
     }
