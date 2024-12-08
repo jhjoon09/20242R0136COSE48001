@@ -163,6 +163,7 @@ impl ClientHandler {
                     self.update(file_map).await;
                 }
                 ClientMessage::FileClaim { claim, peer } => {
+                    println!("Conveying file claim: {:?}, {:?}", claim, peer);
                     self.convey_claim(claim, peer).await;
                 }
             },
@@ -175,6 +176,7 @@ impl ClientHandler {
                     self.group = Some(group);
                 }
                 PeerEvent::FileClaim { claim, peer } => {
+                    println!("Propagating file claim: {:?}, {:?}", claim, peer);
                     let message = ServerMessage::FileClaim { claim, peer };
                     self.transmit(message).await;
                 }

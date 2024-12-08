@@ -1,7 +1,7 @@
 pub mod command;
 
 pub use command::{Command, Consequence};
-use kudrive_common::{event::Event, message::server::ServerMessage, FileMap};
+use kudrive_common::{event::Event, message::server::ServerMessage, FileMap, Peer};
 use tokio::sync::oneshot;
 
 #[derive(Debug)]
@@ -19,6 +19,10 @@ pub enum ClientEvent {
     Consequence {
         id: u64,
         consequence: Consequence,
+    },
+    Opened {
+        ids: (Option<u64>, Option<u64>),
+        convey: (Peer, oneshot::Receiver<Result<(), String>>),
     },
     Timer {},
     Unhealthy {},

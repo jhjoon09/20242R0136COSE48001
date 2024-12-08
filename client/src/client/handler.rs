@@ -36,7 +36,7 @@ impl ClientHandler {
         Self {
             server: Server::new(),
             file_server: FileServer::new(sender.clone()),
-            p2p_transport: P2PTransport::new(),
+            p2p_transport: P2PTransport::new(sender.clone()),
             sender,
             receiver,
             health_checker: None,
