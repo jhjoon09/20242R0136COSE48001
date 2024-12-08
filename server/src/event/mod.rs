@@ -4,7 +4,11 @@ use crate::ClientGroup;
 
 mod meta;
 
-use kudrive_common::{event::Event, message::client::ClientMessage};
+use kudrive_common::{
+    event::Event,
+    message::{client::ClientMessage, FileClaim},
+    Peer,
+};
 pub use meta::MetaEvent;
 use tokio::sync::RwLock;
 
@@ -12,6 +16,7 @@ use tokio::sync::RwLock;
 pub enum PeerEvent {
     Group { group: Arc<RwLock<ClientGroup>> },
     Update {},
+    FileClaim { claim: FileClaim, peer: Peer },
 }
 
 #[derive(Debug, Clone)]

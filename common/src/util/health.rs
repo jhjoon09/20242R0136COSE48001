@@ -20,12 +20,9 @@ impl<U: Message, T: Event<U>> HealthChecker<U, T> {
             while let Some(check) = receiver.recv().await {
                 match check {
                     true => {
-                        println!("Health check reset: {:?}", timestamp);
                         timestamp = SystemTime::now();
                     }
                     false => {
-                        println!("Health check: {:?}", timestamp);
-
                         if let Ok(elapsed) = timestamp.elapsed() {
                             if elapsed >= timeout {
                                 break;

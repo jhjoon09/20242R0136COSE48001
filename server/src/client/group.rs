@@ -40,16 +40,6 @@ impl ClientGroup {
         self.clients.values().cloned().collect()
     }
 
-    pub fn find_by_nickname(&self, nickname: &str) -> Option<Uuid> {
-        self.clients
-            .values()
-            .find(|client| client.nickname == nickname)
-            .map(|client| {
-                let Client { id, .. } = client;
-                *id
-            })
-    }
-
     fn send(&self, sender: &Sender<ServerEvent>, event: &ServerEvent) {
         let sender = sender.clone();
         let event = event.clone();

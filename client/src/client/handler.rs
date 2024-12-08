@@ -134,21 +134,18 @@ impl ClientHandler {
         };
 
         match event {
-            ClientEvent::Message { message } => {
-                println!("Received message: {:?}", message);
-                match message {
-                    ServerMessage::HealthCheck {} => match self.health_checker {
-                        Some(ref mut health_checker) => health_checker.check().await,
-                        None => self.sender().send(ClientEvent::Unhealthy {}).await.unwrap(),
-                    },
-                    ServerMessage::ClientsUpdate { clients } => {
-                        self.set_clients(clients);
-                    }
-                    ServerMessage::FileClaim { claim, peer } => {
-                        todo!();
-                    }
+            ClientEvent::Message { message } => match message {
+                ServerMessage::HealthCheck {} => match self.health_checker {
+                    Some(ref mut health_checker) => health_checker.check().await,
+                    None => self.sender().send(ClientEvent::Unhealthy {}).await.unwrap(),
+                },
+                ServerMessage::ClientsUpdate { clients } => {
+                    self.set_clients(clients);
                 }
-            }
+                ServerMessage::FileClaim { claim, peer } => {
+                    todo!();
+                }
+            },
             ClientEvent::FileMapUpdate { file_map } => {
                 // TODO: implement file map update
                 let message = ClientMessage::FileMapUpdate { file_map };
@@ -169,10 +166,10 @@ impl ClientHandler {
                 }
             }
             ClientEvent::Timer {} => {
-                println!("Timer event.");
                 self.transmit(ClientMessage::HealthCheck {}).await;
             }
             ClientEvent::Unhealthy {} => {
+                println!("Server is unhealthy.");
                 self.connect_server().await;
             }
         };

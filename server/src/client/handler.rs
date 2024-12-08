@@ -2,9 +2,9 @@ use std::{sync::Arc, time::Duration};
 
 use kudrive_common::{
     health::HealthChecker,
-    message::{client::ClientMessage, server::ServerMessage},
+    message::{client::ClientMessage, server::ServerMessage, FileClaim},
     tcp::transmitter,
-    Client, FileMap, Listener, Transmitter,
+    Client, FileMap, Listener, Peer, Transmitter,
 };
 use tokio::{
     net::TcpStream,
@@ -110,6 +110,22 @@ impl ClientHandler {
         self.transmitter.send(message).await.unwrap();
     }
 
+    async fn convey_claim(&mut self, claim: FileClaim, peer: Peer) {
+        if let Some(Client { id: from, .. }) = &self.client {
+            let Peer { id: target, .. } = peer;
+            let peer = Peer { id: *from, ..peer };
+            let event = ServerEvent::PeerEvent {
+                event: PeerEvent::FileClaim { claim, peer },
+            };
+
+            if let Some(group) = &self.group {
+                let lock = group.write().await;
+                lock.unicast(target, event).await;
+                drop(lock);
+            }
+        }
+    }
+
     async fn propagate(&mut self) {
         if let Some(group) = &self.group {
             let lock = group.read().await;
@@ -147,7 +163,7 @@ impl ClientHandler {
                     self.update(file_map).await;
                 }
                 ClientMessage::FileClaim { claim, peer } => {
-                    todo!();
+                    self.convey_claim(claim, peer).await;
                 }
             },
             ServerEvent::PeerEvent { event } => match event {
@@ -157,6 +173,10 @@ impl ClientHandler {
                 }
                 PeerEvent::Group { group } => {
                     self.group = Some(group);
+                }
+                PeerEvent::FileClaim { claim, peer } => {
+                    let message = ServerMessage::FileClaim { claim, peer };
+                    self.transmit(message).await;
                 }
             },
             ServerEvent::Unhealthy {} => {
