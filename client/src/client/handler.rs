@@ -1,18 +1,16 @@
+use std::time::Duration;
+
 use crate::{
+    event::{ClientEvent, Command, Consequence},
     file_server::FileServer,
     net::{p2p::P2PTransport, server::Server},
     p2p,
 };
 use dotenv::{dotenv, from_path};
 use kudrive_common::{
-    event::{
-        client::{
-            command::{Command, Consequence},
-            ClientEvent, ServerMessage,
-        },
-        server::ClientMessage,
-    },
-    util::Pendings,
+    health::HealthChecker,
+    message::{client::ClientMessage, server::ServerMessage, FileClaim},
+    pending::Pendings,
     Client,
 };
 use tokio::sync::{
@@ -23,7 +21,8 @@ use tokio::sync::{
 pub struct ClientHandler {
     sender: Sender<ClientEvent>,
     receiver: Receiver<ClientEvent>,
-    pub file_server: FileServer,
+    health_checker: Option<HealthChecker<ServerMessage, ClientEvent>>,
+    file_server: FileServer,
     pub server: Server,
     pub p2p_transport: P2PTransport,
     pendings: Pendings<oneshot::Sender<Consequence>>,
@@ -48,9 +47,10 @@ impl ClientHandler {
         Self {
             server: Server::new(),
             file_server: FileServer::new(sender.clone()),
-            p2p_transport,
+            p2p_transport: P2PTransport::new_mock(sender.clone()),
             sender,
             receiver,
+            health_checker: None,
             pendings: Pendings::new(),
             clients: Vec::new(),
         }
@@ -69,7 +69,9 @@ impl ClientHandler {
     }
 
     async fn transmit(&mut self, message: ClientMessage) {
-        self.server.transmit(message).await.unwrap();
+        if let Err(_) = self.server.transmit(message).await {
+            self.sender.send(ClientEvent::Unhealthy {}).await.unwrap();
+        }
     }
 
     async fn send_event(&self, event: ClientEvent) {
@@ -86,15 +88,52 @@ impl ClientHandler {
         self.send_event(event).await;
     }
 
-    pub async fn start(&mut self) {
-        if let Err(e) = self.server.connect(self.sender()).await {
-            eprintln!("Failed to connect to server: {:?}", e);
-            return;
+    async fn connect_server(&mut self) {
+        // connect to server
+        loop {
+            match self.server.connect(self.sender()).await {
+                Ok(_) => break,
+                Err(e) => {
+                    eprintln!("Failed to connect to server: {:?}", e);
+                }
+            }
         }
+
+        // register to server
+        loop {
+            match self.server.register().await {
+                Ok(_) => break,
+                Err(e) => {
+                    eprintln!("Failed to register to server: {:?}", e);
+                }
+            }
+        }
+
+        // spawn health checker
+        let health_checker = HealthChecker::new(
+            self.sender.clone(),
+            ClientEvent::Unhealthy {},
+            Duration::from_secs(5),
+        );
+        health_checker.check().await;
+        self.health_checker = Some(health_checker);
+    }
+
+    pub async fn start(&mut self) {
+        self.connect_server().await;
 
         self.file_server.start().await;
         // self.p2p_transport.connect_relay(10).await;
         // self.p2p_transport.listen_on_peer(10).await;
+
+        // spawn health check send timer
+        let sender = self.sender.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                sender.send(ClientEvent::Timer {}).await.unwrap();
+            }
+        });
 
         println!("Client started.");
     }
@@ -107,18 +146,23 @@ impl ClientHandler {
         };
 
         match event {
-            ClientEvent::Message { message } => {
-                println!("Received message: {:?}", message);
-                match message {
-                    ServerMessage::HealthCheck { timestamp } => {
-                        println!("Health check: {:?}", timestamp);
-                    }
-                    ServerMessage::ClientsUpdate { clients } => {
-                        // TODO: implement clients update
-                        self.set_clients(clients);
-                    }
+            ClientEvent::Message { message } => match message {
+                ServerMessage::HealthCheck {} => match self.health_checker {
+                    Some(ref mut health_checker) => health_checker.check().await,
+                    None => self.sender().send(ClientEvent::Unhealthy {}).await.unwrap(),
+                },
+                ServerMessage::ClientsUpdate { clients } => {
+                    self.set_clients(clients);
                 }
-            }
+                ServerMessage::FileClaim { claim, peer } => match claim {
+                    FileClaim::SendClaim { pending } => {
+                        self.p2p_transport.send_open(false, pending, peer).await;
+                    }
+                    FileClaim::ReceiveClaim { pending } => {
+                        self.p2p_transport.receive(pending, peer).await;
+                    }
+                },
+            },
             ClientEvent::FileMapUpdate { file_map } => {
                 // TODO: implement file map update
                 let message = ClientMessage::FileMapUpdate { file_map };
@@ -131,14 +175,43 @@ impl ClientHandler {
                     Command::Clients {} => {
                         self.get_clients(id).await;
                     }
+                    Command::FileSend { peer } => {
+                        self.p2p_transport.send_open(true, id, peer).await;
+                    }
+                    Command::FileReceive { peer } => {
+                        let message = ClientMessage::FileClaim {
+                            claim: FileClaim::SendClaim { pending: id },
+                            peer,
+                        };
+                        println!("Sending file claim: {:?}", message);
+                        self.transmit(message).await;
+                    }
                 }
             }
             ClientEvent::Consequence { id, consequence } => {
                 if let Some(responder) = self.pendings.remove(id) {
                     responder.send(consequence).unwrap();
                 }
-            } // TODO: implement clients broadcast message
-              // TODO: implement health check message
+            }
+            ClientEvent::Opened { ids, convey } => {
+                let (wid, rid) = ids;
+                let (peer, rx) = convey;
+
+                let message = ClientMessage::FileClaim {
+                    claim: FileClaim::ReceiveClaim { pending: rid },
+                    peer: peer.clone(),
+                };
+                self.transmit(message).await;
+
+                self.p2p_transport.send_wait(wid, peer, rx).await;
+            }
+            ClientEvent::Timer {} => {
+                self.transmit(ClientMessage::HealthCheck {}).await;
+            }
+            ClientEvent::Unhealthy {} => {
+                println!("Server is unhealthy.");
+                self.connect_server().await;
+            }
         };
         Ok(())
     }

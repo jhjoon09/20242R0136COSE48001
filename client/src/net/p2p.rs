@@ -1,3 +1,10 @@
+use tokio::{sync::oneshot, time};
+
+use kudrive_common::Peer;
+use tokio::sync::mpsc::Sender;
+
+use crate::event::{ClientEvent, Consequence};
+
 use futures::{executor::block_on, future::FutureExt, stream::StreamExt};
 use kudrive_common::p2p::generate_ed25519;
 use libp2p::{
@@ -91,28 +98,36 @@ pub struct P2PTransport {
     pub p2p_id: PeerId,
     pub relay_address: Multiaddr,
     pub command_tx: Sender<P2pCommand>,
+    responder: Sender<ClientEvent>,
 }
 
 impl P2PTransport {
-    pub fn new_mock() -> Self {
+    pub fn new_mock(responder: Sender<ClientEvent>) -> Self {
         let (tx, _) = mpsc::channel::<P2pCommand>(CMD_BUFF_SIZE);
         Self {
             p2p_id: PeerId::random(),
             relay_address: Multiaddr::empty(),
             command_tx: tx,
+            responder
         }
     }
+    
+    fn responder(&self) -> Sender<ClientEvent> {
+        self.responder.clone()
+    }
 
-    pub async fn new(relay_address: &str, secret_key_seed: &str) -> Result<Self, Box<dyn Error>> {
+    pub async fn new(relay_address: &str, secret_key_seed: &str, responder: Sender<ClientEvent>) -> Result<Self, Box<dyn Error>> {
         let relay_address = Multiaddr::from_str(relay_address).expect("Invalid relay address");
         let mut swarm = Self::init_swarm(secret_key_seed, &mut relay_address.clone()).await?;
         let p2p_id = swarm.local_peer_id().clone();
 
         let (tx, rx) = mpsc::channel::<P2pCommand>(CMD_BUFF_SIZE);
+      
         let p2p_client = Self {
             p2p_id,
             relay_address,
             command_tx: tx,
+            responder,
         };
         let relay_address = p2p_client.relay_address.clone();
 
@@ -146,9 +161,80 @@ impl P2PTransport {
             )
             .await;
         });
-
         Ok(p2p_client)
     }
+
+    pub async fn send_open(&self, own: bool, pending: u64, peer: Peer) {
+        let responder = self.responder();
+
+        // tokio::spawn(async move {
+        //     /* START TEMP */
+        //     println!("Opening for sending file: {}", peer.source);
+        //     time::sleep(time::Duration::from_secs(5)).await;
+        //     println!("Opened for sending file: {}", peer.source);
+        //     let (tx, rx) = oneshot::channel();
+        //     /* END TEMP */
+
+        //     let ids = match own {
+        //         true => (Some(pending), None),
+        //         false => (None, Some(pending)),
+        //     };
+
+        //     let convey = (peer, rx);
+        //     let event = ClientEvent::Opened { ids, convey };
+        //     responder.send(event).await.unwrap();
+        // });
+        ()
+    }
+
+    pub async fn send_wait(
+        &self,
+        pending: Option<u64>,
+        peer: Peer,
+        rx: oneshot::Receiver<Result<(), String>>,
+    ) {
+        let responder = self.responder();
+
+        // tokio::spawn(async move {
+        //     /* START TEMP */
+        //     println!("Waiting for sending file: {}", peer.source);
+        //     time::sleep(time::Duration::from_secs(5)).await;
+        //     println!("Waited for sending file: {}", peer.source);
+        //     /* END TEMP */
+
+        //     if let Some(id) = pending {
+        //         let consequence = Consequence::FileSend { result: Ok(()) };
+        //         let event = ClientEvent::Consequence { id, consequence };
+        //         responder.send(event).await.unwrap();
+        //     }
+        // });
+        ()
+    }
+
+    pub async fn receive(&self, pending: Option<u64>, peer: Peer) {
+        let responder = self.responder();
+
+        // tokio::spawn(async move {
+        //     println!(
+        //         "Receiving file from {}: {} -> {}",
+        //         peer.id, peer.source, peer.target
+        //     );
+        //     time::sleep(time::Duration::from_secs(5)).await;
+        //     println!(
+        //         "Received file from {}: {} -> {}",
+        //         peer.id, peer.source, peer.target
+        //     );
+        //     /* END TEMP */
+
+        //     if let Some(id) = pending {
+        //         let consequence = Consequence::FileReceive { result: Ok(()) };
+        //         let event = ClientEvent::Consequence { id, consequence };
+        //         responder.send(event).await.unwrap();
+        //     }
+        // });
+        ()
+    }
+    
 
     pub async fn exit(&self) -> Result<(), Box<dyn Error>> {
         let command = P2pCommand::Exit;

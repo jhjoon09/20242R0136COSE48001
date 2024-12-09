@@ -1,5 +1,6 @@
 pub mod client;
 pub mod config_loader;
+pub mod event;
 pub mod file_server;
 pub mod net;
 
@@ -9,14 +10,10 @@ use std::{
 };
 
 use client::handler::ClientHandler;
-use kudrive_common::{
-    event::{
-        client::{ClientEvent, Command, Consequence},
-        server::ClientMessage,
-    },
-    Client,
-};
+use event::{ClientEvent, Command, Consequence};
+use kudrive_common::{Client, Peer};
 use tokio::sync::{oneshot, Mutex};
+use uuid::Uuid;
 
 static GLOBAL_STATE: LazyLock<Arc<Mutex<ClientHandler>>> =
     LazyLock::new(|| Arc::new(Mutex::new(ClientHandler::new())));
@@ -27,6 +24,10 @@ pub async fn init() {
     let mut handler = GLOBAL_STATE.lock().await;
     handler.start().await;
     drop(handler);
+
+    // tokio::spawn(async move {
+    //     event_loop().await.unwrap();
+    // });
 }
 
 pub async fn event_loop() -> Result<(), Box<dyn Error>> {
@@ -59,12 +60,26 @@ pub async fn execute_command(command: Command) -> Result<Consequence, String> {
     }
 }
 
-pub async fn file_send(nick: String, source: String, target: String) -> Result<(), String> {
-    Ok(())
+pub async fn file_send(id: Uuid, source: String, target: String) -> Result<(), String> {
+    let peer = Peer { id, source, target };
+    let command = Command::FileSend { peer: peer.clone() };
+
+    match execute_command(command).await {
+        Ok(Consequence::FileSend { result }) => result,
+        Ok(_) => Err("Unexpected consequence".to_string()),
+        Err(e) => Err(e),
+    }
 }
 
-pub async fn file_receive(nick: String, source: String, target: String) -> Result<(), String> {
-    Ok(())
+pub async fn file_receive(id: Uuid, source: String, target: String) -> Result<(), String> {
+    let peer = Peer { id, source, target };
+    let command = Command::FileReceive { peer };
+
+    match execute_command(command).await {
+        Ok(Consequence::FileReceive { result }) => result,
+        Ok(_) => Err("Unexpected consequence".to_string()),
+        Err(e) => Err(e),
+    }
 }
 
 pub async fn clients() -> Result<Vec<Client>, String> {
@@ -80,11 +95,5 @@ pub async fn clients() -> Result<Vec<Client>, String> {
 pub async fn shutdown() {
     let mut handler = GLOBAL_STATE.lock().await;
     handler.shutdown().await;
-    drop(handler);
-}
-
-pub async fn send_event(event: ClientMessage) {
-    let mut handler = GLOBAL_STATE.lock().await;
-    handler.server.transmit(event).await.unwrap();
     drop(handler);
 }

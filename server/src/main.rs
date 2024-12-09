@@ -1,3 +1,5 @@
+
+use kudrive_server::Server;
 pub mod p2p;
 use clap::Parser;
 
@@ -13,6 +15,12 @@ async fn main() {
     if opts.test_p2p {
         let _ = p2p::P2PTransport::run(4001, false).await;
     } else {
+        let mut server = Server::new().await;
+
+        server.start().await.unwrap();
+
+        println!("Done!");
+      
         tracing::info!("Server started.");
         // let _ = p2p::P2PTransport::run(4001, false).await;
         let (exit_tx, exit_rx) = tokio::sync::oneshot::channel();
