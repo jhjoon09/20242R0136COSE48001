@@ -1,12 +1,13 @@
-server :
-  domain : 
-  port : 
+server:
+  domain:
+  port:
+  p2p_relay_addr:
 file:
-  workspace :  
-  refresh_time : 
-  ignore_list : 
+  workspace:
+  refresh_time:
+  ignore_list:
 
-id :
-  group_id : 
-  my_id : 
-  nickname : 
+id:
+  group_id:
+  my_id:
+  nickname:

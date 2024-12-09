@@ -1,12 +1,12 @@
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use crate::{
+    config_loader::get_config,
     event::{ClientEvent, Command, Consequence},
     file_server::FileServer,
     net::{p2p::P2PTransport, server::Server},
-    p2p,
 };
-use dotenv::{dotenv, from_path};
+use futures::executor::block_on;
 use kudrive_common::{
     health::HealthChecker,
     message::{client::ClientMessage, server::ServerMessage, FileClaim},
@@ -31,23 +31,28 @@ pub struct ClientHandler {
 
 impl ClientHandler {
     pub fn new() -> Self {
-        // let _ = from_path(".client.env");
-        // dotenv().ok();
-        // let client_hostname = env::var("CLIENT_NAME").expect("CLIENT_NAME must be set");
-        // let relay_address = env::var("RELAY_ADDR").expect("RELAY_ADDR must be set");
-        // let p2p_transport = P2PTransport::new(&relay_address, &client_hostname)
-        //     .await
-        //     .expect("Failed to create P2P client");
-        let p2p_transport = P2PTransport::new_mock();
+        let cfg = get_config();
 
         // create event channel
-        let channel = mpsc::channel::<ClientEvent>(1024);
+        let channel = mpsc::channel::<ClientEvent>(1024 * 1024);
         let (sender, receiver) = channel;
+
+        let p2p_transport = P2PTransport::new(
+            cfg.server.p2p_relay_addr.as_str(),
+            cfg.id.my_id.to_string().as_str(),
+            sender.clone(),
+            PathBuf::from(cfg.file.workspace.clone()),
+        )
+        .expect("Failed to create P2P client");
+        tracing::info!("P2P Transport warming up....");
+        block_on(async {
+            let _ = p2p_transport.warm_up_with_delay(6).await;
+        });
 
         Self {
             server: Server::new(),
             file_server: FileServer::new(sender.clone()),
-            p2p_transport: P2PTransport::new_mock(sender.clone()),
+            p2p_transport,
             sender,
             receiver,
             health_checker: None,
@@ -94,7 +99,7 @@ impl ClientHandler {
             match self.server.connect(self.sender()).await {
                 Ok(_) => break,
                 Err(e) => {
-                    eprintln!("Failed to connect to server: {:?}", e);
+                    tracing::error!("Failed to connect to server: {:?}", e);
                 }
             }
         }
@@ -104,7 +109,7 @@ impl ClientHandler {
             match self.server.register().await {
                 Ok(_) => break,
                 Err(e) => {
-                    eprintln!("Failed to register to server: {:?}", e);
+                    tracing::error!("Failed to register to server: {:?}", e);
                 }
             }
         }
@@ -135,7 +140,7 @@ impl ClientHandler {
             }
         });
 
-        println!("Client started.");
+        tracing::info!("Client started.");
     }
 
     pub async fn event_listen(&mut self) -> Result<(), TryRecvError> {
@@ -156,9 +161,11 @@ impl ClientHandler {
                 }
                 ServerMessage::FileClaim { claim, peer } => match claim {
                     FileClaim::SendClaim { pending } => {
+                        tracing::info!("Received file SendClaim: {:?}", claim);
                         self.p2p_transport.send_open(false, pending, peer).await;
                     }
                     FileClaim::ReceiveClaim { pending } => {
+                        tracing::info!("Received file RecieveClaim: {:?}", claim);
                         self.p2p_transport.receive(pending, peer).await;
                     }
                 },
@@ -169,7 +176,7 @@ impl ClientHandler {
                 self.transmit(message).await;
             }
             ClientEvent::Command { command, responder } => {
-                println!("Received command: {:?}", command);
+                tracing::info!("Received command: {:?}", command);
                 let id = self.pendings.insert(responder);
                 match command {
                     Command::Clients {} => {
@@ -183,7 +190,7 @@ impl ClientHandler {
                             claim: FileClaim::SendClaim { pending: id },
                             peer,
                         };
-                        println!("Sending file claim: {:?}", message);
+                        tracing::info!("Sending file claim: {:?}", message);
                         self.transmit(message).await;
                     }
                 }
@@ -209,7 +216,7 @@ impl ClientHandler {
                 self.transmit(ClientMessage::HealthCheck {}).await;
             }
             ClientEvent::Unhealthy {} => {
-                println!("Server is unhealthy.");
+                tracing::info!("Server is unhealthy.");
                 self.connect_server().await;
             }
         };
@@ -220,6 +227,6 @@ impl ClientHandler {
         let _ = self.server.disconnect().await;
         self.file_server.stop().await;
 
-        println!("Client shutdown.");
+        tracing::info!("Client shutdown.");
     }
 }

@@ -20,10 +20,7 @@ use tokio::{
     fs::File,
     io::AsyncReadExt,
     select,
-    sync::{
-        mpsc::{self, Receiver, Sender},
-        oneshot,
-    },
+    sync::mpsc::{self, Receiver},
 };
 use tracing_subscriber::EnvFilter;
 
@@ -94,6 +91,7 @@ pub enum P2pCommand {
     },
 }
 
+#[derive(Clone)]
 pub struct P2PTransport {
     pub p2p_id: PeerId,
     pub relay_address: Multiaddr,
@@ -108,21 +106,26 @@ impl P2PTransport {
             p2p_id: PeerId::random(),
             relay_address: Multiaddr::empty(),
             command_tx: tx,
-            responder
+            responder,
         }
     }
-    
+
     fn responder(&self) -> Sender<ClientEvent> {
         self.responder.clone()
     }
 
-    pub async fn new(relay_address: &str, secret_key_seed: &str, responder: Sender<ClientEvent>) -> Result<Self, Box<dyn Error>> {
+    pub fn new(
+        relay_address: &str,
+        secret_key_seed: &str,
+        responder: Sender<ClientEvent>,
+        base_dir_path: PathBuf,
+    ) -> Result<Self, Box<dyn Error>> {
         let relay_address = Multiaddr::from_str(relay_address).expect("Invalid relay address");
-        let mut swarm = Self::init_swarm(secret_key_seed, &mut relay_address.clone()).await?;
+        let mut swarm = Self::init_swarm(secret_key_seed, &mut relay_address.clone())?;
         let p2p_id = swarm.local_peer_id().clone();
 
         let (tx, rx) = mpsc::channel::<P2pCommand>(CMD_BUFF_SIZE);
-      
+
         let p2p_client = Self {
             p2p_id,
             relay_address,
@@ -132,7 +135,7 @@ impl P2PTransport {
         let relay_address = p2p_client.relay_address.clone();
 
         if !Self::is_relay_connected(&swarm, &relay_address.to_string()) {
-            if let Ok(()) = Self::dial_relay(&mut swarm, &relay_address).await {
+            if let Ok(()) = block_on(async { Self::dial_relay(&mut swarm, &relay_address).await }) {
             } else {
                 tracing::error!("Failed to dial to relay ");
             }
@@ -140,8 +143,7 @@ impl P2PTransport {
 
         if !Self::is_listen_peer_via_relay(&mut swarm) {
             for _ in 0..MAX_DIAL_RETRY {
-                if Self::listen_peer_via_relay(&mut swarm, &relay_address)
-                    .await
+                if block_on(async { Self::listen_peer_via_relay(&mut swarm, &relay_address).await })
                     .is_ok()
                 {
                     break;
@@ -153,13 +155,7 @@ impl P2PTransport {
         }
 
         tokio::task::spawn(async move {
-            Self::swarm_event_loop(
-                swarm,
-                rx,
-                // base_dir_path,
-                relay_address,
-            )
-            .await;
+            Self::swarm_event_loop(swarm, rx, base_dir_path, relay_address).await;
         });
         Ok(p2p_client)
     }
@@ -167,74 +163,120 @@ impl P2PTransport {
     pub async fn send_open(&self, own: bool, pending: u64, peer: Peer) {
         let responder = self.responder();
 
-        // tokio::spawn(async move {
-        //     /* START TEMP */
-        //     println!("Opening for sending file: {}", peer.source);
-        //     time::sleep(time::Duration::from_secs(5)).await;
-        //     println!("Opened for sending file: {}", peer.source);
-        //     let (tx, rx) = oneshot::channel();
-        //     /* END TEMP */
-
-        //     let ids = match own {
-        //         true => (Some(pending), None),
-        //         false => (None, Some(pending)),
-        //     };
-
-        //     let convey = (peer, rx);
-        //     let event = ClientEvent::Opened { ids, convey };
-        //     responder.send(event).await.unwrap();
-        // });
+        let p2p_transport = self.clone();
+        let peer_clone = peer.clone();
+        tokio::spawn(async move {
+            /* START TEMP */
+            match p2p_transport.send_file_open(peer.source).await {
+                Ok(rx) => {
+                    let ids = match own {
+                        true => (Some(pending), None),
+                        false => (None, Some(pending)),
+                    };
+                    let convey = (peer_clone, rx);
+                    let event = ClientEvent::Opened { ids, convey };
+                    responder.send(event).await.unwrap();
+                }
+                Err(e) => {
+                    if own {
+                        responder
+                            .send(ClientEvent::Consequence {
+                                id: pending,
+                                consequence: Consequence::FileSend {
+                                    result: Err(format!("Failed to send file open : {:?}", e)),
+                                },
+                            })
+                            .await
+                            .expect("Failed to send file open consequence");
+                    };
+                }
+            };
+        });
         ()
     }
 
     pub async fn send_wait(
         &self,
         pending: Option<u64>,
-        peer: Peer,
-        rx: oneshot::Receiver<Result<(), String>>,
+        _peer: Peer,
+        mut rx: oneshot::Receiver<Result<(), String>>,
     ) {
         let responder = self.responder();
 
-        // tokio::spawn(async move {
-        //     /* START TEMP */
-        //     println!("Waiting for sending file: {}", peer.source);
-        //     time::sleep(time::Duration::from_secs(5)).await;
-        //     println!("Waited for sending file: {}", peer.source);
-        //     /* END TEMP */
-
-        //     if let Some(id) = pending {
-        //         let consequence = Consequence::FileSend { result: Ok(()) };
-        //         let event = ClientEvent::Consequence { id, consequence };
-        //         responder.send(event).await.unwrap();
-        //     }
-        // });
+        let p2p_transport = self.clone();
+        tokio::spawn(async move {
+            match p2p_transport
+                .send_file_wait(&mut rx, REQUEST_TIMEOUT_SEC)
+                .await
+            {
+                Ok(_) => {
+                    if let Some(id) = pending {
+                        let consequence = Consequence::FileSend { result: Ok(()) };
+                        let event = ClientEvent::Consequence { id, consequence };
+                        responder.send(event).await.unwrap();
+                    };
+                }
+                Err(e) => {
+                    if let Some(id) = pending {
+                        responder
+                            .send(ClientEvent::Consequence {
+                                id,
+                                consequence: Consequence::FileSend {
+                                    result: Err(format!("Failed to send file wait : {:?}", e)),
+                                },
+                            })
+                            .await
+                            .expect("Failed to send file wait consequence");
+                    };
+                }
+            };
+        });
         ()
     }
 
     pub async fn receive(&self, pending: Option<u64>, peer: Peer) {
         let responder = self.responder();
 
-        // tokio::spawn(async move {
-        //     println!(
-        //         "Receiving file from {}: {} -> {}",
-        //         peer.id, peer.source, peer.target
-        //     );
-        //     time::sleep(time::Duration::from_secs(5)).await;
-        //     println!(
-        //         "Received file from {}: {} -> {}",
-        //         peer.id, peer.source, peer.target
-        //     );
-        //     /* END TEMP */
+        let remote_peer_id = generate_ed25519(peer.id.to_string().as_str())
+            .public()
+            .to_peer_id()
+            .to_string();
 
-        //     if let Some(id) = pending {
-        //         let consequence = Consequence::FileReceive { result: Ok(()) };
-        //         let event = ClientEvent::Consequence { id, consequence };
-        //         responder.send(event).await.unwrap();
-        //     }
-        // });
+        let p2p_transport = self.clone();
+        tokio::spawn(async move {
+            match p2p_transport
+                .recv_file(
+                    remote_peer_id,
+                    peer.source,
+                    peer.target,
+                    REQUEST_TIMEOUT_SEC,
+                )
+                .await
+            {
+                Ok(_) => {
+                    if let Some(id) = pending {
+                        let consequence = Consequence::FileReceive { result: Ok(()) };
+                        let event = ClientEvent::Consequence { id, consequence };
+                        responder.send(event).await.unwrap();
+                    };
+                }
+                Err(e) => {
+                    if let Some(id) = pending {
+                        responder
+                            .send(ClientEvent::Consequence {
+                                id,
+                                consequence: Consequence::FileReceive {
+                                    result: Err(format!("Failed to receive file : {:?}", e)),
+                                },
+                            })
+                            .await
+                            .expect("Failed to send file receive consequence");
+                    };
+                }
+            };
+        });
         ()
     }
-    
 
     pub async fn exit(&self) -> Result<(), Box<dyn Error>> {
         let command = P2pCommand::Exit;
@@ -266,7 +308,7 @@ impl P2PTransport {
         target_path: String,
         save_path: String,
         timeout: u64,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), String> {
         let (tx, rx) = oneshot::channel();
         let command = P2pCommand::RecvFile {
             remote_peer_id: remote_peer_id.clone(),
@@ -275,11 +317,18 @@ impl P2PTransport {
             response_tx: tx,
         };
 
-        self.connect_relay(timeout).await?;
-        self.connect_peer(remote_peer_id.clone(), timeout).await?;
+        self.connect_relay(timeout)
+            .await
+            .map_err(|e| e.to_string())?;
+        self.connect_peer(remote_peer_id.clone(), timeout)
+            .await
+            .map_err(|e| e.to_string())?;
 
         tracing::info!("Sending file request to cmd q: {:?}", target_path);
-        self.command_tx.send(command).await?;
+        self.command_tx
+            .send(command)
+            .await
+            .map_err(|e| e.to_string())?;
         tracing::info!("Sent file request to cmd q: {:?}", target_path);
         tracing::info!("Waiting for file request response: {:?}", target_path);
         tokio::select! {
@@ -287,7 +336,7 @@ impl P2PTransport {
                 match res {
                     Ok(Ok(())) => Ok(()),
                     Ok(Err(err)) => Err(err.into()),
-                    Err(recv_err) => Err(recv_err.into()),
+                    Err(recv_err) => Err(recv_err.to_string()),
                 }
             },
             _ = tokio::time::sleep(Duration::from_secs(REQUEST_TIMEOUT_SEC)) => {
@@ -299,14 +348,19 @@ impl P2PTransport {
     pub async fn send_file_open(
         &self,
         src_path: String,
-    ) -> Result<oneshot::Receiver<Result<(), String>>, Box<dyn Error>> {
-        self.listen_on_peer(REQUEST_TIMEOUT_SEC).await?;
+    ) -> Result<oneshot::Receiver<Result<(), String>>, String> {
+        self.listen_on_peer(REQUEST_TIMEOUT_SEC)
+            .await
+            .map_err(|e| e.to_string())?;
         let (tx, rx) = oneshot::channel();
         let command = P2pCommand::SendFileOpen {
             src_path,
             response_tx: tx,
         };
-        self.command_tx.send(command).await?;
+        self.command_tx
+            .send(command)
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(rx)
     }
 
@@ -314,13 +368,13 @@ impl P2PTransport {
         &self,
         rx: &mut oneshot::Receiver<Result<(), String>>,
         timeout: u64,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), String> {
         tokio::select! {
             res = rx => {
                 match res {
                     Ok(Ok(())) => Ok(()),
-                    Ok(Err(err)) => Err(err.into()),
-                    Err(recv_err) => Err(recv_err.into()),
+                    Ok(Err(err)) => Err(err),
+                    Err(recv_err) => Err(recv_err.to_string()),
                 }
             },
             _ = tokio::time::sleep(Duration::from_secs(timeout)) => {
@@ -418,7 +472,7 @@ impl P2PTransport {
     async fn swarm_event_loop(
         mut swarm: Swarm<Behaviour>,
         mut command_rx: Receiver<P2pCommand>,
-        // base_dir_path: std::path::PathBuf,
+        base_dir_path: std::path::PathBuf,
         mut relay_addr: Multiaddr,
     ) {
         let mut pending_requests: HashMap<String, oneshot::Sender<Result<(), String>>> =
@@ -426,7 +480,7 @@ impl P2PTransport {
         let mut told_relay_observed_addr = false;
         let mut learned_observed_addr = false;
         let mut is_exit = false;
-        // let mut base_dir_path = base_dir_path.clone();
+        let mut base_dir_path = base_dir_path.clone();
         loop {
             select! {
                 Some(command) = command_rx.recv() => {
@@ -439,7 +493,7 @@ impl P2PTransport {
                         &mut told_relay_observed_addr,
                         &mut learned_observed_addr,
                         event,
-                        // base_dir_path.clone(),
+                        base_dir_path.clone(),
                         &mut pending_requests
                     ).await;
                 }
@@ -665,7 +719,7 @@ impl P2PTransport {
         Ok(())
     }
 
-    async fn init_swarm(
+    fn init_swarm(
         secret_key_seed: &str,
         relay_addr: &mut Multiaddr,
     ) -> Result<Swarm<Behaviour>, Box<dyn Error>> {
@@ -762,7 +816,7 @@ impl P2PTransport {
         told_relay_observed_addr: &mut bool,
         learned_observed_addr: &mut bool,
         event: SwarmEvent<BehaviourEvent>,
-        // base_dir_path: std::path::PathBuf,
+        base_dir_path: std::path::PathBuf,
         pending_requests: &mut HashMap<String, oneshot::Sender<Result<(), String>>>,
     ) -> Result<(), Box<dyn Error>> {
         match event {
@@ -820,12 +874,12 @@ impl P2PTransport {
                 }
             }
             // SwarmEvent::Behaviour(BehaviourEvent::KuMessaging(event)) => {
-            //     println!(">>{:?}", event);
+            //     tracing::info!(">>{:?}", event);
             //     match event {
             //         request_response::Event::Message { peer: _, message } => {
             //             match message {
             //                 request_response::Message::Request { request, channel, .. } => {
-            //                     println!("Received request: {:?}", request);
+            //                     tracing::info!("Received request: {:?}", request);
             //                     let response = KuMessage(format!("Echo: {}", request.0));
             //                     swarm
             //                         .behaviour_mut()
@@ -834,18 +888,18 @@ impl P2PTransport {
             //                         .expect("Failed to send response");
             //                 }
             //                 request_response::Message::Response { request_id, response } => {
-            //                     println!("Received response to request {:?}: {:?}", request_id, response);
+            //                     tracing::info!("Received response to request {:?}: {:?}", request_id, response);
             //                 }
             //             }
             //         }
             //         request_response::Event::OutboundFailure { peer, request_id, error } => {
-            //             println!("Outbound failure for peer {:?}, request {:?}: {:?}", peer, request_id, error);
+            //             tracing::info!("Outbound failure for peer {:?}, request {:?}: {:?}", peer, request_id, error);
             //         }
             //         request_response::Event::InboundFailure { peer, request_id, error } => {
-            //             println!("Inbound failure for peer {:?}, request {:?}: {:?}", peer, request_id, error);
+            //             tracing::info!("Inbound failure for peer {:?}, request {:?}: {:?}", peer, request_id, error);
             //         }
             //         request_response::Event::ResponseSent { peer, request_id } => {
-            //             println!("Response sent to peer {:?}, request {:?}", peer, request_id);
+            //             tracing::info!("Response sent to peer {:?}, request {:?}", peer, request_id);
             //         }
             //     }
             // }
@@ -865,7 +919,8 @@ impl P2PTransport {
                             );
                             sender_opt = None;
                         }
-                        let file_path = std::path::Path::new(&request.target_path);
+                        let file_path = base_dir_path.join(&request.target_path);
+                        // let file_path = std::path::Path::new(&request.target_path);
                         if let Ok(mut file) = File::open(file_path).await {
                             let mut content = Vec::new();
                             if file.read_to_end(&mut content).await.is_ok() {
@@ -955,9 +1010,9 @@ impl P2PTransport {
                             }
                         } else {
                             tracing::info!("Received file from {:?}: {}", peer, response.file_name);
-                            // let file_path = base_dir_path.join(&response.file_name);
+                            // if let file_path = base_dir_path.join(&response.file_name) {
                             if let Ok(mut file_path) = PathBuf::from_str(&response.tgt_path) {
-                                // file_path = file_path.join(&response.file_name);
+                                file_path = base_dir_path.join(file_path);
                                 // if tokio::fs::write(&file_path, &response.content)
                                 if tokio::fs::write(&file_path, &response.content)
                                     .await
@@ -1024,7 +1079,7 @@ pub async fn run_cli_command(
 ) -> bool {
     match cmd {
         "exit" => {
-            println!(">>{:?}", "Exiting...");
+            tracing::info!(">>{:?}", "Exiting...");
             cli_helpfn();
             // break;
             return true;
@@ -1036,12 +1091,12 @@ pub async fn run_cli_command(
                 .send(P2pCommand::GetId { response_tx: tx })
                 .await;
             if res.is_err() {
-                println!("Error: {:?}", res);
+                tracing::info!("Error: {:?}", res);
             }
             let res = rx.await;
             match res {
-                Ok(peer_id) => println!("Local peer id: {:?}", peer_id),
-                Err(e) => eprintln!("Failed to get local peer id: {}", e),
+                Ok(peer_id) => tracing::info!("Local peer id: {:?}", peer_id),
+                Err(e) => tracing::error!("Failed to get local peer id: {}", e),
             }
             cli_helpfn();
         }
@@ -1055,31 +1110,31 @@ pub async fn run_cli_command(
             let res = rx.await;
             match res {
                 Ok(status) => match status {
-                    P2pStatus::NotConnected => println!("Status : Not connected"),
-                    P2pStatus::RelayConnected => println!("Status : Relay connected"),
+                    P2pStatus::NotConnected => tracing::info!("Status : Not connected"),
+                    P2pStatus::RelayConnected => tracing::info!("Status : Relay connected"),
                     P2pStatus::PeerConnected(peers) => {
-                        println!("Status : Peer connected");
+                        tracing::info!("Status : Peer connected");
                         for peer in peers {
-                            println!("  - {:?}", peer);
+                            tracing::info!("  - {:?}", peer);
                         }
                     }
                 },
-                Err(e) => eprintln!("Failed to get status: {}", e),
+                Err(e) => tracing::error!("Failed to get status: {}", e),
             }
             cli_helpfn();
         }
         "ls" => {
             match std::fs::read_dir(".") {
                 Ok(entries) => {
-                    println!("Files in current directory:");
+                    tracing::info!("Files in current directory:");
                     for entry in entries {
                         if let Ok(entry) = entry {
-                            println!("  - {:?}", entry.file_name());
+                            tracing::info!("  - {:?}", entry.file_name());
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to list directory: {}", e);
+                    tracing::error!("Failed to list directory: {}", e);
                 }
             }
             cli_helpfn();
@@ -1093,12 +1148,12 @@ pub async fn run_cli_command(
             tokio::select! {
                 res = rx => match res {
                     Ok(res) => {
-                        println!("Relay connected: {:?}", res);
+                        tracing::info!("Relay connected: {:?}", res);
                     }
-                    Err(e) => eprintln!("Failed to get pending requests: {}", e),
+                    Err(e) => tracing::error!("Failed to get pending requests: {}", e),
                 },
                 _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
-                    println!(">>{:?}", "Aborted")
+                    tracing::info!(">>{:?}", "Aborted")
                 }
             }
             cli_helpfn();
@@ -1112,15 +1167,15 @@ pub async fn run_cli_command(
             tokio::select! {
                 res = rx => match res {
                     Ok(requests) => {
-                        println!("Pending requests:");
+                        tracing::info!("Pending requests:");
                         for req in requests {
-                            println!("  - {:?}", req);
+                            tracing::info!("  - {:?}", req);
                         }
                     }
-                    Err(e) => eprintln!("Failed to get pending requests: {}", e),
+                    Err(e) => tracing::error!("Failed to get pending requests: {}", e),
                 },
                 _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
-                    println!(">>{:?}", "Aborted")
+                    tracing::info!(">>{:?}", "Aborted")
                 }
             }
             cli_helpfn();
@@ -1129,28 +1184,28 @@ pub async fn run_cli_command(
         "lis" => {
             let res = client.listen_on_peer(5).await;
             match res {
-                Ok(_) => println!("Listening on peer"),
-                Err(e) => eprintln!("Failed to listen on peer: {}", e),
+                Ok(_) => tracing::info!("Listening on peer"),
+                Err(e) => tracing::error!("Failed to listen on peer: {}", e),
             }
         }
         "liss" => {
             let res = client.get_listen_addr(5).await;
             match res {
                 Ok(addrs) => {
-                    println!("Listening on peer ({})", addrs.len());
+                    tracing::info!("Listening on peer ({})", addrs.len());
                     for addr in addrs {
-                        println!("  - {:?}", addr);
+                        tracing::info!("  - {:?}", addr);
                     }
                 }
-                Err(e) => eprintln!("Failed to listen on peer: {}", e),
+                Err(e) => tracing::error!("Failed to listen on peer: {}", e),
             }
         }
         "lis_check" => {
             let res = client.is_listening(5).await;
             match res {
-                Ok(true) => println!("Listening on peer"),
-                Ok(false) => println!("Not listening on peer"),
-                Err(e) => eprintln!("Failed to listen on peer: {}", e),
+                Ok(true) => tracing::info!("Listening on peer"),
+                Ok(false) => tracing::info!("Not listening on peer"),
+                Err(e) => tracing::error!("Failed to listen on peer: {}", e),
             }
         }
         other if other.starts_with("dial-") => {
@@ -1169,13 +1224,13 @@ pub async fn run_cli_command(
                 let res = rx.await;
                 match res {
                     Ok(res) => match res {
-                        Ok(_) => println!("Connected to peer {}", peer_id),
-                        Err(e) => eprintln!("Failed to dial peer {}: {}", peer_id, e),
+                        Ok(_) => tracing::info!("Connected to peer {}", peer_id),
+                        Err(e) => tracing::error!("Failed to dial peer {}: {}", peer_id, e),
                     },
-                    Err(e) => eprintln!("Failed to dial peer {}: {}", peer_id, e),
+                    Err(e) => tracing::error!("Failed to dial peer {}: {}", peer_id, e),
                 }
             } else {
-                eprintln!("Invalid format. Use 'dial-<peer_id>'");
+                tracing::error!("Invalid format. Use 'dial-<peer_id>'");
             }
             cli_helpfn();
         }
@@ -1188,20 +1243,22 @@ pub async fn run_cli_command(
                 tokio::select! {
                     res = client.recv_file(remote_peer_id, target_path, save_path, 10) => {
                         match res {
-                            Ok(_) => println!("File received successfully."),
-                            Err(e) => eprintln!("Failed to receive file: {:?}", e)
+                            Ok(_) => tracing::info!("File received successfully."),
+                            Err(e) => tracing::error!("Failed to receive file: {:?}", e)
                         }
                     }
                     _ = tokio::time::sleep(std::time::Duration::from_secs(20)) => {
                         return false;
                     }
                     _ = tokio::signal::ctrl_c() => {
-                        println!(">>{:?}", "Aborted");
+                        tracing::info!(">>{:?}", "Aborted");
                         return true;
                     }
                 }
             } else {
-                eprintln!("Invalid format. Use 'r-<remote_peer_id>-<target_path>-<save_path>'");
+                tracing::error!(
+                    "Invalid format. Use 'r-<remote_peer_id>-<target_path>-<save_path>'"
+                );
             }
             cli_helpfn();
         }
@@ -1212,20 +1269,20 @@ pub async fn run_cli_command(
                 tokio::select! {
                     _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {}
                     _ = tokio::signal::ctrl_c() => {
-                        println!(">>{:?}", "Aborted");
+                        tracing::info!(">>{:?}", "Aborted");
                         return true;
                     }
                     res = client.send_file_open(src_path) => {
                         match res {
                             Ok(rx) => {
                                 *send_rx = Some(rx);
-                                println!("File sent open successfully.")},
-                            Err(e) => eprintln!("Failed to send file: {}", e),
+                                tracing::info!("File sent open successfully.")},
+                            Err(e) => tracing::error!("Failed to send file: {}", e),
                         }
                     }
                 }
             } else {
-                eprintln!("Invalid format. Use 's-<remote_peer_id>-<target_path>'");
+                tracing::error!("Invalid format. Use 's-<remote_peer_id>-<target_path>'");
             }
             cli_helpfn();
         }
@@ -1234,23 +1291,23 @@ pub async fn run_cli_command(
                 tokio::select! {
                     _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {}
                     _ = tokio::signal::ctrl_c() => {
-                        println!(">>{:?}", "Aborted");
+                        tracing::info!(">>{:?}", "Aborted");
                         return true;
                     }
                     res = client.send_file_wait(rx, 30)=> {
                         match res {
-                            Ok(_) => println!("File sent successfully."),
-                            Err(e) => eprintln!("Failed to send file: {}", e),
+                            Ok(_) => tracing::info!("File sent successfully."),
+                            Err(e) => tracing::error!("Failed to send file: {}", e),
                         }
                     }
                 }
             } else {
-                eprintln!("No reciever given");
+                tracing::error!("No reciever given");
             }
             cli_helpfn();
         }
         _ => {
-            println!("Unknown command");
+            tracing::info!("Unknown command");
             cli_helpfn();
         }
     }
@@ -1258,7 +1315,7 @@ pub async fn run_cli_command(
 }
 
 pub fn cli_helpfn() {
-    println!(
+    tracing::info!(
         r#"
 Commands:
 - 'exit' to exit
