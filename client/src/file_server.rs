@@ -1,8 +1,9 @@
 extern crate walkdir;
 
 use crate::config_loader::get_config;
-use kudrive_common::event::client::ClientEvent;
 use kudrive_common::fs::{File, Folder, FileMap};
+use crate::event::ClientEvent;
+use kudrive_common::fs::{File, FileMap};
 use notify::{Event, RecommendedWatcher, RecursiveMode, Result, Watcher};
 use regex::Regex;
 use std::path::{Path, PathBuf};
