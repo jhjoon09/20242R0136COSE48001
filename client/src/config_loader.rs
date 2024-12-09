@@ -14,6 +14,7 @@ pub struct Config {
 pub struct ServerConfig {
     pub domain: String,
     pub port: u16,
+    pub p2p_relay_addr: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,4 +44,3 @@ lazy_static! {
 pub fn get_config() -> &'static Config {
     &CONFIG
 }
-

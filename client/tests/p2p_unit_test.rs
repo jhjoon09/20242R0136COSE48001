@@ -1,7 +1,9 @@
 use core::panic;
+use kudrive_client::event::ClientEvent;
 use kudrive_client::p2p::{P2PTransport, P2pCommand, P2pStatus};
 use libp2p::PeerId;
 use rand::{distributions::Alphanumeric, Rng};
+use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::str::FromStr;
 use std::time::Duration;
@@ -14,7 +16,7 @@ const LOCAL_RELAY_ADDR: &str =
     "/ip4/127.0.0.1/tcp/4001/p2p/12D3KooWA768LzHMatxkjD1f9DrYW375GZJr6MHPCNEdDtHeTNRt";
 
 const SERVER_WARMUP_TIME: u64 = 5;
-const WARMUP_TIME: u64 = 5;
+const WARMUP_TIME: u64 = 10;
 const TEST_TIMEOUT: u64 = 10;
 const TEST_WAIT_TIMEOUT: u64 = 10;
 const TEST_RECIVER_TIME_DELAY: u64 = 5;
@@ -153,17 +155,17 @@ async fn test_listening() {
     let listen_result = client.listen_on_peer(10).await;
 
     if let Err(e) = listen_result {
-        eprintln!("Failed to start peer listening: {:?}", e);
+        tracing::error!("Failed to start peer listening: {:?}", e);
         panic!("Failed to start peer listening");
     }
 
     let res = client.is_listening(TEST_TIMEOUT).await;
     match res {
         Ok(_) => {
-            println!("Peer listening started successfully.");
+            tracing::info!("Peer listening started successfully.");
         }
         Err(e) => {
-            eprintln!("Failed to start peer listening: {:?}", e);
+            tracing::error!("Failed to start peer listening: {:?}", e);
             panic!("Failed to start peer listening");
         }
     }
@@ -185,10 +187,10 @@ async fn test_list_pending_requests() {
             match res {
                 Ok(rx) => {
                     let _ = Some(rx); // receiver for waiting not used for test
-                    println!("File sent open successfully.");
+                    tracing::info!("File sent open successfully.");
                 },
                 Err(e) => {
-                    eprintln!("Failed to send file: {:?}", e);
+                    tracing::error!("Failed to send file: {:?}", e);
                     panic!("Failed to send file")
                 },
             }
@@ -210,9 +212,9 @@ async fn test_list_pending_requests() {
     tokio::select! {
         res = rx => match res {
             Ok(requests) => {
-                println!("Pending requests: {}", requests.len());
+                tracing::info!("Pending requests: {}", requests.len());
                 for req in requests.clone().into_iter() {
-                    println!("  - {:?}", req);
+                    tracing::info!("  - {:?}", req);
                 }
                 assert!(
                     requests.contains(&DUMMY_FILE_PATH.to_string()),
@@ -220,7 +222,7 @@ async fn test_list_pending_requests() {
                 );
             }
             Err(e) => {
-                eprintln!("Failed to get pending requests: {}", e);
+                tracing::error!("Failed to get pending requests: {}", e);
                 panic!("Failed to get pending requests");
             },
         },
@@ -293,9 +295,9 @@ async fn test_dial_peer() {
             let status = result.expect("Failed to receive peer status");
             match status {
                 P2pStatus::PeerConnected(peers) => {
-                    println!("Connected peer ({:?})", peers.len());
+                    tracing::info!("Connected peer ({:?})", peers.len());
                     for peer_id in peers.clone() {
-                        println!("Connected peer: {:?}", peer_id);
+                        tracing::info!("Connected peer: {:?}", peer_id);
                     }
                     assert!(
                         peers.contains(&peer_id),
@@ -354,7 +356,7 @@ async fn test_receive_file() {
     tokio::select! {
         result = recv_rx => {
             let transfer_result = result.expect("Failed to receive file transfer status");
-            eprintln!("Transfer result: {:?}", transfer_result);
+            tracing::error!("Transfer result: {:?}", transfer_result);
             assert!(transfer_result.is_ok(), "File transfer should succeed");
         }
         _ = tokio::time::sleep(std::time::Duration::from_secs(TEST_TIMEOUT)) => {
@@ -419,9 +421,9 @@ async fn test_integrated_file_transfer() {
                     match res {
                         Ok(rx) => {
                             send_rx = Some(rx);
-                            println!("File sent open successfully.");
+                            tracing::info!("File sent open successfully.");
                         },
-                        Err(e) => eprintln!("Failed to send file: {}", e),
+                        Err(e) => tracing::error!("Failed to send file: {}", e),
                     }
                 }
                 _ = tokio::time::sleep(std::time::Duration::from_secs(TEST_TIMEOUT)) => {
@@ -504,8 +506,8 @@ async fn test_integrated_file_transfer() {
 
 async fn setup_mock_client(client_name: &str) -> P2PTransport {
     let relay_address = LOCAL_RELAY_ADDR;
-    let res = P2PTransport::new(&relay_address, client_name)
-        .await
+    let (tx, rx) = tokio::sync::mpsc::channel::<ClientEvent>(1024);
+    let res = P2PTransport::new(&relay_address, client_name, tx, PathBuf::from("./"))
         .expect("Failed to create client");
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     res

@@ -72,7 +72,7 @@ impl FileServer {
         FileServer::send(responder.clone()).await;
 
         tokio::spawn(async move {
-            println!("File server started.");
+            tracing::info!("File server started.");
 
             let config = get_config();
             let path = &config.file.workspace;
@@ -113,11 +113,11 @@ impl FileServer {
 
                         match event.kind {
                             notify::EventKind::Create(_any) => {
-                                println!("created");
+                                tracing::info!("created");
                             }
 
                             notify::EventKind::Remove(_any) => {
-                                println!("removed");
+                                tracing::info!("removed");
                             }
 
                             _ => {
@@ -130,7 +130,7 @@ impl FileServer {
                         FileServer::send(responder.clone()).await;
                     }
                     Err(e) => {
-                        eprintln!("watch error: {:?}", e);
+                        tracing::error!("watch error: {:?}", e);
                     }
                 }
             }
@@ -138,6 +138,6 @@ impl FileServer {
     }
 
     pub async fn stop(&self) {
-        println!("File server stopped.");
+        tracing::info!("File server stopped.");
     }
 }

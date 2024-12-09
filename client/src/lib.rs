@@ -17,10 +17,13 @@ use uuid::Uuid;
 
 static GLOBAL_STATE: LazyLock<Arc<Mutex<ClientHandler>>> =
     LazyLock::new(|| Arc::new(Mutex::new(ClientHandler::new())));
-use file_server::FileServer;
 pub use net::p2p;
 
 pub async fn init() {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
+
     let mut handler = GLOBAL_STATE.lock().await;
     handler.start().await;
     drop(handler);

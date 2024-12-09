@@ -162,6 +162,12 @@ impl P2PTransport {
             .with(Protocol::Tcp(port));
         swarm.listen_on(listen_addr_tcp.clone())?;
 
+        // let listen_addr_quic = Multiaddr::empty()
+        //     .with(Protocol::from(Ipv4Addr::UNSPECIFIED))
+        //     .with(Protocol::Udp(port))
+        //     .with(Protocol::QuicV1);
+        // swarm.listen_on(listen_addr_quic.clone())?;
+
         let swarm_handle = Arc::new(Mutex::new(SwarmHandle::new(swarm, event_rx)));
 
         let swarm_handle_clone = Arc::clone(&swarm_handle);
@@ -214,12 +220,21 @@ impl SwarmHandle {
                 Some(swarm_event) = swarm.next() => {
                     match swarm_event {
                         SwarmEvent::Behaviour(event) => {
-                            tracing::info!("{:?}", event);
+                            if let BehaviourEvent::Identify(identify::Event::Received {
+                                info: identify::Info { observed_addr, .. },
+                                ..
+                            }) = &event
+                            {
+                                swarm.add_external_address(observed_addr.clone());
+                            }
+                            // tracing::info!("{:?}", event);
                         }
                         SwarmEvent::NewListenAddr { address, .. } => {
                             tracing::info!("Listening on {}", address);
                         }
-                        _ => {}
+                        _ => {
+                            // tracing::info!("UNIDENTIFIED: {:?}", event);
+                        }
                     }
                 },
                 Some(msg) = event_rx.recv() => {
