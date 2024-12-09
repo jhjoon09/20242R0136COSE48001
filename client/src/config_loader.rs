@@ -32,7 +32,7 @@ pub struct IdConfig {
     pub nickname: String,
 }
 
-const CONFIG_FILE_PATH: &str = "./client/config/client.yaml"; // YAML 파일 경로
+const CONFIG_FILE_PATH: &str = "./config/client.yaml"; // YAML 파일 경로
 
 lazy_static! {
     static ref CONFIG: Config = {
@@ -82,6 +82,7 @@ pub fn set_config(workspace: String, group_name: String, nickname: String) {
 
     let yaml_content = serde_yaml::to_string(&new_config).expect("Failed to serialize config");
 
+    println!("Updating configuration...");    
     let mut file = File::create(CONFIG_FILE_PATH).expect("Failed to create config file");
     file.write_all(yaml_content.as_bytes())
         .expect("Failed to write to config file");
