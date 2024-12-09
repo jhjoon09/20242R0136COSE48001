@@ -1,16 +1,15 @@
-use std::time::SystemTime;
-
 use serde::{Deserialize, Serialize};
 use serde_json;
 
-use crate::Client;
+use crate::{Client, Peer};
 
-use super::Message;
+use super::{FileClaim, Message};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ServerMessage {
-    HealthCheck { timestamp: SystemTime },
+    HealthCheck {},
     ClientsUpdate { clients: Vec<Client> },
+    FileClaim { claim: FileClaim, peer: Peer },
 }
 
 impl Message for ServerMessage {
@@ -19,9 +18,7 @@ impl Message for ServerMessage {
             Ok(message) => message,
             Err(e) => {
                 eprintln!("Failed to parse JSON data: {:?}", e);
-                ServerMessage::HealthCheck {
-                    timestamp: SystemTime::now(),
-                }
+                ServerMessage::HealthCheck {}
             }
         }
     }

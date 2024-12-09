@@ -1,13 +1,15 @@
-use std::net::Ipv4Addr;
 use std::sync::Arc;
 
-use kudrive_common::event::client::{ClientEvent, ServerMessage};
 use kudrive_common::message::client::ClientMessage;
-use kudrive_common::{Listener, Transmitter};
+use kudrive_common::message::server::ServerMessage;
+use kudrive_common::{Client, FileMap, Listener, Transmitter};
 use tokio::io::{self, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
+
+use crate::config_loader::get_config;
+use crate::event::ClientEvent;
 
 pub struct Server {
     stream: Option<Arc<Mutex<TcpStream>>>,
@@ -29,8 +31,8 @@ impl Server {
     }
 
     pub async fn connect(&mut self, sender: Sender<ClientEvent>) -> io::Result<()> {
-        // TODO: server address configuration
-        let address = format!("{}:{}", Ipv4Addr::LOCALHOST, 7878);
+        let config = get_config();
+        let address = format!("{}:{}", config.server.domain, config.server.port);
 
         // create tcp stream
         let stream = TcpStream::connect(address).await?;
@@ -41,6 +43,19 @@ impl Server {
         self.listener = Some(Listener::spawn(self.clone_stream(), sender));
 
         Ok(())
+    }
+
+    pub async fn register(&mut self) -> io::Result<()> {
+        let config = &get_config();
+        let client = Client {
+            group: config.id.group_id,
+            id: config.id.my_id,
+            nickname: config.id.nickname.clone(),
+            files: FileMap { files: vec![] },
+        };
+
+        let message = ClientMessage::Register { client };
+        self.transmit(message).await
     }
 
     pub async fn disconnect(&mut self) -> io::Result<()> {
