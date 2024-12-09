@@ -97,7 +97,6 @@ impl FileServer {
 
     async fn send(responder: Sender<ClientEvent>) {
         let file_map = get_filemap(get_config().file.workspace.clone());
-        println!("{:?}", file_map);
         let event = ClientEvent::FileMapUpdate { file_map: file_map.clone() };
 
         // TODO: logics for file map update
