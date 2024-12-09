@@ -21,12 +21,11 @@ function MainPage() {
   useEffect(() => {
     async function greet() {
       try {
-        const is_first_run = await invoke<boolean>("is_first_run");
-        if (is_first_run) {
+        const nickname = await invoke<string>("get_nick");
+        if (!nickname) {
           setGreetMsg("Please set your nickname in the settings.");
           navigate("/settings");
         } else {
-          const nickname = await invoke<string>("get_nick");
           setGreetMsg(`Hello, ${nickname}!`);
         }
       } catch (error) {
