@@ -15,6 +15,7 @@ pub struct Config {
 pub struct ServerConfig {
     pub domain: String,
     pub port: u16,
+    pub hash: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -47,12 +48,25 @@ pub fn get_config() -> &'static Config {
     &CONFIG
 }
 
+pub fn get_relay_addr() -> String {
+    format!("/ip4/{}/tcp/{}/p2p/{}/{}", CONFIG.server.domain, CONFIG.server.port, CONFIG.id.group_id, CONFIG.server.hash)
+}
+
+pub fn get_nickname() -> String {
+    CONFIG.id.nickname.clone()
+}
+
+pub fn get_workspace() -> String {
+    CONFIG.file.workspace.clone()
+}
+
 // Setter to update and save the configuration
 pub fn set_config(workspace: String, group_name: String, nickname: String) {
     let new_config = Config {
         server: ServerConfig {
-            domain: "localhost".to_string(),
-            port: 8080,
+            domain: "".to_string(),
+            port: 4001,
+            hash: "".to_string(),
         },
         file: FileConfig {
             workspace,
