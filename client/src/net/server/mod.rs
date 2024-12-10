@@ -51,7 +51,7 @@ impl Server {
             group: config.id.group_id,
             id: config.id.my_id,
             nickname: config.id.nickname.clone(),
-            files: FileMap { files: vec![] },
+            files: FileMap { files: vec![], folders: vec![] },
         };
 
         let message = ClientMessage::Register { client };

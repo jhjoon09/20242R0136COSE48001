@@ -1,43 +1,78 @@
-extern crate walkdir;
-
-use crate::config_loader::get_config;
+use crate::config_loader::{get_config, get_workspace};
 use crate::event::ClientEvent;
-use kudrive_common::fs::{File, FileMap};
+use dirs;
+use kudrive_common::fs::{File, Folder, FileMap};
 use notify::{Event, RecommendedWatcher, RecursiveMode, Result, Watcher};
 use regex::Regex;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use tokio::sync::mpsc::Sender;
-use walkdir::WalkDir;
 
 pub struct FileServer {
     responder: Sender<ClientEvent>,
 }
 
-fn list_all_files<P: AsRef<Path>>(path: P) -> FileMap {
+fn resolve_path(path: String) -> String {
+    if path.starts_with("~") {
+        let home_dir = dirs::home_dir().expect("Failed to get home directory");
+        let home_dir = home_dir.to_str().unwrap().replace("\\", "/");
+        path.replacen("~", &home_dir, 1)
+    } else {
+        path
+    }
+}
+
+fn get_files(path : String) -> FileMap {
+    let path_name = resolve_path(path);
+
     let mut files = Vec::new();
+    let mut folders = Vec::new();
 
-    let walker = WalkDir::new(path);
+    let paths = match std::fs::read_dir(&path_name) {
+        Ok(entries) => entries,
+        Err(_) => return FileMap { files, folders },
+    };
 
-    let iterator = walker.into_iter();
+    for entry in paths {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            let file_name = match path.file_name() {
+                Some(name) => name.to_str().unwrap().to_string(),
+                None => continue,
+            };
 
-    let filtered_iterator = iterator.filter_map(|e| e.ok());
+            let file_name = format!("{}/{}", path_name, file_name);
 
-    for entry in filtered_iterator {
-        if entry.file_type().is_file() {
-            let file_path = entry.path().display().to_string();
-            files.push(file_path);
+            if path.is_dir() {
+                folders.push(Folder { name: file_name });
+            } else {
+                files.push(File { name: file_name });
+            }
         }
     }
 
-    let files = files
-        .iter()
-        .map(|file| File {
-            name: file.to_string(),
-        })
-        .collect();
+    FileMap { files, folders }
+}
 
-    return FileMap { files };
+fn get_filemap(path : String) -> FileMap {
+    let mut all_files = Vec::new();
+    let mut all_folders = Vec::new();
+
+    let current = get_files(path.clone());
+
+    all_files.extend(current.files);
+    all_folders.extend(current.folders.clone());
+
+    for folder in current.folders {
+        let sub_contents = get_filemap(folder.name);
+        all_files.extend(sub_contents.files);
+        all_folders.extend(sub_contents.folders);
+    }
+
+    FileMap {
+        files: all_files,
+        folders: all_folders,
+    }
 }
 
 fn check_exclude(path: &PathBuf, patterns: &[Regex]) -> bool {
@@ -59,7 +94,7 @@ impl FileServer {
     }
 
     async fn send(responder: Sender<ClientEvent>) {
-        let files = list_all_files(get_config().file.workspace.clone());
+        let files = get_files(get_workspace());
         let event = ClientEvent::FileMapUpdate { file_map: files };
 
         // TODO: logics for file map update
