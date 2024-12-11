@@ -72,7 +72,7 @@ const MyDest: React.FC = () => {
     try {
       await invoke("recive_file", {
         id: uuid,
-        source: file.substring(4),
+        source: "." + file.substring(4),
         target: selectedFolder + "/" + saveName ,
       });
       alert(`File transfer initiated from ${file} to ${selectedFolder} by ${nickname}`);

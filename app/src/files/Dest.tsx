@@ -120,6 +120,7 @@ const Dest: React.FC = () => {
 
   const handleFolderSelect = (path: string) => {
     path = path.substring(4);
+    path = "." + path;
     setSelectedFolder(path);
   };
 
