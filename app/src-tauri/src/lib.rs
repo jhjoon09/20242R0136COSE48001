@@ -1,35 +1,61 @@
 use dirs;
 use std::collections::HashMap;
+use std::path::Path;
+use uuid::Uuid;
+use tokio::sync::Mutex;
+
+use std::sync::{Arc, LazyLock};
+
 use kudrive_client::init as client_init;
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use kudrive_client::config_loader::{set_config, get_uuid};
+use kudrive_client::{file_send, file_receive, clients};
 use tracing_subscriber::EnvFilter;
 
-static mut NICKNAME: Option<String> = None;
-static mut WORKSPACE: Option<String> = None;
+const CONFIG_FILE_PATH: &str = "./client.yaml";
 
-#[tauri::command]
-fn get_nick() -> Option<String> {
-    let nickname;
-    unsafe {
-        nickname = NICKNAME.clone();
-    }
-    nickname
-}
 
-#[tauri::command]
-fn set_setting(nickname: String, workspace: String) {
-    unsafe {
-        NICKNAME = Some(nickname);
-        WORKSPACE = Some(workspace);
+static GLOBAL_STATE: LazyLock<Arc<Mutex<bool>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(true)));
+
+fn resolve_path(path: String) -> String{
+    if path.starts_with("~") {
+        let home_dir = dirs::home_dir().expect("Failed to get home directory");
+        let home_dir = home_dir.to_str().unwrap().replace("\\", "/");
+        path.replacen("~", &home_dir, 1)
+    } else {
+        path
     }
 }
 
 #[tauri::command]
-fn init() {
-    unsafe {
-        NICKNAME = None;
-        WORKSPACE = None;
+fn is_first_run() -> bool{
+    let path = Path::new(CONFIG_FILE_PATH);
+    !(path.exists() && path.is_file())
+}
+
+#[tauri::command]
+fn init_config(workspace: String, group: String, nickname: String) {
+    let workspace = resolve_path(workspace);
+    set_config(workspace, group, nickname);
+}
+
+#[tauri::command]
+fn get_nickname() -> String {
+    let config = kudrive_client::config_loader::get_config();
+    config.id.nickname.clone()
+}
+
+#[tauri::command]
+async fn init_client() {
+    let mut is_first = GLOBAL_STATE.lock().await;
+    if *is_first {
+        client_init().await;
+        *is_first = false;
+        drop(is_first);        
+        return;
     }
+
+    return;
 }
 
 #[derive(serde::Serialize)]
@@ -40,21 +66,13 @@ struct DirectoryContents {
 
 #[tauri::command]
 fn get_files(path: String) -> DirectoryContents {
-    let resolved_path = if path.starts_with("~") {
-        let home_dir = dirs::home_dir().expect("Failed to get home directory");
-        let home_dir = home_dir.to_str().unwrap().replace("\\", "/");
-        path.replacen("~", &home_dir, 1)
-    } else {
-        path
-    };
-
-    println!("Resolved path: {}", resolved_path);
+    let path = resolve_path(path);
 
     let mut files = Vec::new();
     let mut folders = Vec::new();
 
     // 디렉토리 읽기
-    let paths = std::fs::read_dir(&resolved_path).expect("Failed to read directory");
+    let paths = std::fs::read_dir(&path).expect("Failed to read directory");
     
     for entry in paths {
         let entry = entry.unwrap();
@@ -74,66 +92,86 @@ fn get_files(path: String) -> DirectoryContents {
 }
 
 #[tauri::command]
-fn get_destinations() -> HashMap<String, Vec<String>> {
-    let mut data = HashMap::new();
-let file1 = vec![
-    "a/".to_string(),
-    "a/b/".to_string(),
-    "a/c/".to_string(),
-    "a/b/c/".to_string(),
-    "a/v/c/".to_string(),
-    "a/c/d/f/".to_string(),
-    "b/".to_string(),
-    "b/x/".to_string(),
-    "b/y/z/".to_string(),
-    "b/x/w/".to_string(),
-    "c/d/e/".to_string(),
-    "c/d/e/f/".to_string(),
-    "c/d/g/h/".to_string(),
-    "d/e/f/".to_string(),
-    "e/f/g/h/i/".to_string(),
-    "f/g/h/".to_string(),
-    "f/g/h/j/k/".to_string(),
-    "g/h/".to_string(),
-    "g/h/i/".to_string(),
-    "g/h/j/".to_string(),
-    "h/i/".to_string(),
-    "h/i/j/".to_string(),
-    "i/j/k/l/".to_string(),
-    "i/j/l/m/".to_string(),
-];
-    let file2 = file1.clone();     
-    data.insert("1".to_string(), file1);
-    data.insert("2".to_string(), file2);
-    data
+async fn get_filemap() -> (HashMap<String, Vec<String>>,Vec<(String,String)>) {
+    let client_data = clients().await;
+
+    let mut map = HashMap::new();
+    let mut id_map = vec![];
+    let my_id = get_uuid();
+    match client_data {
+        Ok(clients) => {
+            for client in clients {
+                if client.id == my_id {
+                    //continue;
+                }
+
+                let mut file_vec = vec![];
+                for file in client.files.files {
+                    file_vec.push(file.name);
+                }
+
+                map.insert(client.id.to_string().clone(), file_vec);
+                id_map.push((client.nickname.clone(), client.id.clone().to_string()));
+            }
+            (map,id_map)
+        }
+        Err(e) => {
+            eprintln!("Failed to get clients: {:?}", e);
+            (HashMap::new(),vec![])
+        }
+    }
 }
 
 #[tauri::command]
-fn send_file(from: String, id: String, dest : String) {
-    let from = if from.starts_with("~") {
-        let home_dir = dirs::home_dir().expect("Failed to get home directory");
-        let home_dir = home_dir.to_str().unwrap().replace("\\", "/");
-        from.replacen("~", &home_dir, 1)
-    } else {
-        from
-    };
+async fn get_foldermap() -> (HashMap<String, Vec<String>>,Vec<(String,String)>) {
+    let client_data = clients().await;
+
+    let mut map = HashMap::new();
+    let mut id_map = vec![];
+    let my_id = get_uuid();
+
+    match client_data {
+        Ok(clients) => {
+            for client in clients {
+
+                if client.id == my_id{
+                    continue;
+                }
+
+                let mut folder_vec = vec![];
+                for folder in client.files.folders {
+                    folder_vec.push(folder.name);
+                }
+
+                let key = client.id.clone().to_string();
+                map.insert(key, folder_vec);
+                id_map.push((client.nickname.clone(), client.id.clone().to_string()));
+            }
+
+            println!("{:?}", map);
+            (map,id_map)
+        }
+        Err(e) => {
+            eprintln!("Failed to get clients: {:?}", e);
+            (HashMap::new(),vec![])
+        }
+    }
+}
+
+#[tauri::command]
+async fn send_file(id: Uuid, source: String, target: String) -> Result<(), String> {
+    let source = resolve_path(source);
     
-    println!("from {} to {} who {}", from , dest, id);
+    println!("from {} to {} who {}", source , target, id);
+
+    file_send(id, source, target).await
 }
 
 #[tauri::command]
-fn recive_file(id : String, from : String, dest : String) {
-    println!("from {} to {} who {}", from , dest, id);
-}
-
-#[tauri::command]
-async fn print_async(input: i32) -> Result<String, String> {
-    tracing::info!("async input: {}", input);
-
-    // Some async fn call
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-    Ok(format!("return from async"))
+async fn recive_file(id: Uuid, source: String, target: String) -> Result<(), String> {
+    let target = resolve_path(target);
+    println!("from {} to {} who {}", source , target, id);
+    file_receive(id, source, target).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -156,14 +194,15 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
-            get_nick,
-            set_setting,
-            init,
+            is_first_run,
+            init_config,
+            get_nickname,
+            init_client,
             get_files,
-            get_destinations,
+            get_filemap,
+            get_foldermap,
             send_file,
-            recive_file,
-            print_async
+            recive_file            
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

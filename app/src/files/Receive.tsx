@@ -73,8 +73,9 @@ const FileNodeComponent: React.FC<{
 };
 
 const Receive: React.FC = () => {
+  const [idMap, setIdMap] = useState<Record<string, string>>({});
   const [fileMap, setFileMap] = useState<Record<string, string[]> | null>(null);
-  const [selectedNickname, setSelectedNickname] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string>("");
   const [openState, setOpenState] = useState<Record<string, boolean>>({});
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -82,8 +83,17 @@ const Receive: React.FC = () => {
   useEffect(() => {
     const fetchFiles = async () => {
       try {
-        const data = await invoke("get_destinations"); // Rust 함수 호출
-        setFileMap(data as Record<string, string[]>);
+        const data = await invoke("get_filemap"); // Rust 함수 호출
+        const [files, idmap] = data as [Record<string, string[]>, [string,string][]]
+        setFileMap(files as Record<string, string[]>);
+
+        const idMapping : Record<string,string> = {};
+        idmap.forEach(([nickname, uuid]) => {
+          idMapping[uuid] = nickname;
+        });
+
+        setIdMap(idMapping);
+
       } catch (error) {
         console.error("Error fetching files:", error);
       }
@@ -102,11 +112,11 @@ const Receive: React.FC = () => {
   const handleFileSelect = (path: string) => {
     setSelectedFile(path);
     alert(`Selected file: ${path}`);
-    navigate("/my-dest", { state: { file: path, nickname: selectedNickname } });
+    navigate("/my-dest", { state: { file: path, nickname: idMap[selectedId], uuid : selectedId } });
   };
 
-  const handleNicknameSelect = (nickname: string) => {
-    setSelectedNickname(nickname);
+  const handleIdSelect = (uuid: string) => {
+    setSelectedId(uuid);
     setOpenState({}); // 닉네임 변경 시 열린 상태 초기화
     setSelectedFile(null); // 닉네임 변경 시 선택된 파일 초기화
   };
@@ -115,7 +125,7 @@ const Receive: React.FC = () => {
     return <div>Loading...</div>;
   }
 
-  const fileTree = selectedNickname ? buildFileTree(fileMap[selectedNickname]) : [];
+  const fileTree = selectedId ? buildFileTree(fileMap[selectedId]) : [];
 
   return (
     <div style={{ display: "flex" }}>
@@ -123,9 +133,9 @@ const Receive: React.FC = () => {
       <div style={{ width: "200px", padding: "10px", borderRight: "1px solid #ddd" }}>
         <h2>Select Nickname</h2>
         <ul>
-          {Object.keys(fileMap).map((nickname) => (
-            <li key={nickname} onClick={() => handleNicknameSelect(nickname)} style={{ cursor: "pointer" }}>
-              {nickname}
+          {Object.keys(idMap).map((uuid) => (
+            <li key={uuid} onClick={() => handleIdSelect(uuid)} style={{ cursor: "pointer" }}>
+              {idMap[uuid]}
             </li>
           ))}
         </ul>

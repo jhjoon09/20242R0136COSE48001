@@ -1,86 +1,130 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import HomeButton from "./component/HomeButton";
 
+interface DirectoryContents {
+  folders: string[];
+}
 
 const Settings: React.FC = () => {
   const [nickname, setNickname] = useState<string>("");
-  const [workspace, setWorkspace] = useState<string>("");
+  const [workspace, setWorkspace] = useState<string>("~");
+  const [group, setGroup] = useState<string>("");
+  const [openWorkspace, setOpenWorkspace] = useState<boolean>(false);
+  const [folders, setFolders] = useState<string[]>([]);
+  const [currentPath, setCurrentPath] = useState<string>("~");
   const navigate = useNavigate();
 
-  const selectDirectory = async () => {
-    console.log("Selecting directory...");
-    const selected = "~/";
-
-    if (selected) {
-      setWorkspace(selected);
+  // 디렉토리 목록 가져오기
+  const fetchFolders = async (path: string) => {
+    try {
+      const data: DirectoryContents = await invoke("get_files", { path });
+      setCurrentPath(path);
+      setFolders(data.folders);
+    } catch (error) {
+      console.error("Error fetching folders:", error);
     }
   };
 
-  useEffect(() => {
-    async function checkNickname() {
-      try {
-        const currentNickname = await invoke<string|null>("get_nick"); // Rust에서 닉네임 가져오기
-        console.log("currentNickname:", currentNickname);
+  // 초기 로드
+  const handleOpenWorkspace = () => {
+    setOpenWorkspace(true);
+    fetchFolders("~");
+  };
 
-        if (currentNickname != null) {
-          navigate("/"); // 닉네임이 있으면 메인 화면으로 리다이렉트
-        }
-      } catch (error) {
-        console.error("Error checking nickname:", error);
-      }
-    }
+  // 상위 폴더 이동
+  const handleGoUp = () => {
+    const parentPath = currentPath.split("/").slice(0, -1).join("/") || "~/";
+    fetchFolders(parentPath);
+  };
 
-    checkNickname();
-  }, [navigate]);
+  // 폴더 클릭 처리
+  const handleFolderClick = (folderName: string) => {
+    const newPath = `${currentPath}/${folderName}`;
+    fetchFolders(newPath);
+  };
 
+  // 폴더 선택 처리
+  const handleFolderSelect = (folderName: string) => {
+    const selectedPath = `${currentPath}/${folderName}`;
+    setWorkspace(selectedPath);
+    setOpenWorkspace(false);
+  };
+
+  // 설정 저장
   const saveSetting = async () => {
     try {
-      await invoke("set_setting", { nickname, workspace }); // Rust에 닉네임과 경로 저장
-      alert("Nickname && path saved!");
-      navigate("/"); // 메인 페이지로 이동
+      console.log("Saving setting...");
+      console.log("nickname: ", nickname);
+      console.log("workspace: ", workspace);
+      await invoke("init_config", { workspace: workspace, group : group, nickname :nickname });
+      alert("Config saved!");
+      navigate("/");
     } catch (error) {
       console.error("Error saving:", error);
       alert("Failed to save. Try again.");
     }
   };
 
+  if (openWorkspace) {
+    return (
+      <div style={{ padding: "20px" }}>
+        <h1>Select Workspace Directory</h1>
+        <p>Current Path: {currentPath}</p>
+        <button onClick={handleGoUp} disabled={currentPath === "~/"}>Go Up</button>
+        <ul>
+          {folders.map((folder, index) => (
+            <li key={index} style={{ display: "flex", alignItems: "center" }}>
+              <span
+                style={{
+                  cursor: "pointer",
+                  color: "blue",
+                  flex: 1,
+                }}
+                onClick={() => handleFolderClick(folder)} // 폴더 안으로 이동
+              >
+                {"📁"} {folder}
+              </span>
+              <button
+                onClick={() => handleFolderSelect(folder)} // 폴더 선택 버튼
+                style={{
+                  marginLeft: "10px",
+                  padding: "5px 10px",
+                  backgroundColor: "#28a745",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "5px",
+                  cursor: "pointer",
+                }}
+              >
+                Select
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: "20px" }}>
       <HomeButton />
       <h1>Settings</h1>
       <div>
-        <button
-          onClick={() => {
-            invoke<string>('print_async', { input: 123 })
-              .then((res) => {
-                console.log('from rust test_async_from_rust fn :', res);
-              })
-              .catch((e) => {
-                console.error(e);
-              });
-          }}
-          style={{
-            position: 'relative', // 고정 위치 설정
-            top: '10px',
-            left: '10px',
-            padding: '10px 15px',
-            background: '#f44336',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-          }}
-        >
-          TestAsyncFromRust
-        </button>
-      </div>
-      <div>
         <label>Workspace Directory:</label>
-        <button onClick={selectDirectory}>Select Directory</button>
+        <button onClick={handleOpenWorkspace}>Select Directory</button>
         <p>Selected Directory: {workspace}</p>
       </div>
+      <label>
+        Enter your group:
+        <input
+          type="text"
+          value={group}
+          onChange={(e) => setGroup(e.target.value)}
+          style={{ marginLeft: "10px" }}
+        />
+      </label>
       <label>
         Enter your nickname:
         <input
@@ -90,7 +134,6 @@ const Settings: React.FC = () => {
           style={{ marginLeft: "10px" }}
         />
       </label>
-      <br />
       <button onClick={saveSetting} style={{ marginTop: "10px" }}>
         Save
       </button>

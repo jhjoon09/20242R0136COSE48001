@@ -11,15 +11,16 @@ const MyDest: React.FC = () => {
   const [currentPath, setCurrentPath] = useState<string>("~");
   const [folders, setFolders] = useState<string[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [saveName, setSaveName] = useState<string>("");
 
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { file, nickname } = location.state || {}; // file과 nickname 데이터를 state로 전달받음
+  const { file, nickname, uuid } = location.state || {}; // file과 nickname 데이터를 state로 전달받음
 
   // 초기 데이터 유효성 검사
   useEffect(() => {
-    if (!file || !nickname) {
+    if (!file || !nickname || !uuid) {
       alert("Missing file or nickname. Returning to the previous page.");
       navigate("/receive");
     }
@@ -70,9 +71,9 @@ const MyDest: React.FC = () => {
 
     try {
       await invoke("recive_file", {
-        id: nickname,
-        from: file,
-        dest: selectedFolder,
+        id: uuid,
+        source: file.substring(4),
+        target: selectedFolder + "/" + saveName ,
       });
       alert(`File transfer initiated from ${file} to ${selectedFolder} by ${nickname}`);
       navigate("/receive"); // 완료 후 다시 receive 페이지로 이동
@@ -125,8 +126,16 @@ const MyDest: React.FC = () => {
           </li>
         ))}
       </ul>
-
-      {selectedFolder && (
+      <label>
+        Save as:
+        <input
+          type="text"
+          value={saveName}
+          onChange={(e) => setSaveName(e.target.value)}
+          style={{ marginLeft: "10px" }}
+        />
+      </label>
+      {saveName && selectedFolder && (
         <div>
           <p>Selected Folder: {selectedFolder}</p>
           <button

@@ -21,12 +21,14 @@ function MainPage() {
   useEffect(() => {
     async function greet() {
       try {
-        const nickname = await invoke<string>("get_nick");
-        if (!nickname) {
+        const is_first_run = await invoke("is_first_run");
+        if (is_first_run) {
           setGreetMsg("Please set your nickname in the settings.");
           navigate("/settings");
         } else {
+          const nickname = await invoke("get_nickname");
           setGreetMsg(`Hello, ${nickname}!`);
+          await invoke("init_client");
         }
       } catch (error) {
         console.error("Error fetching nickname:", error);

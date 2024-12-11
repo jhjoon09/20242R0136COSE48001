@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import HomeButton from "../component/HomeButton";
 
 interface FolderNode {
@@ -24,12 +24,14 @@ const buildFolderTree = (folderList: string[]): FolderNode[] => {
         currentNode.push(existingNode);
       }
 
-      // 마지막 부분은 더 이상 자식이 없는 폴더이므로 children을 undefined로 설정
-      if (index === parts.length - 1) {
+      if(!existingNode.children){
+        existingNode.children = [];
+      }
+      else if (existingNode.children.length === 0 && index === parts.length - 1) {
         existingNode.children = undefined;
       }
 
-      currentNode = existingNode.children || [];
+      currentNode = existingNode.children!;
     });
   });
 
@@ -46,7 +48,7 @@ const FolderNodeComponent: React.FC<{
   const isOpen = openState[path] || false;
 
   return (
-    <><HomeButton /><li>
+    <><li>
           <span
               onClick={() => toggleOpen(path)}
               style={{ cursor: "pointer" }}
@@ -77,26 +79,33 @@ const FolderNodeComponent: React.FC<{
 
 const Dest: React.FC = () => {
   const [folderMap, setFolderMap] = useState<Record<string, string[]> | null>(null);
+  const [idMap, setIdMap] = useState<Record<string,string>>({});
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [openState, setOpenState] = useState<Record<string, boolean>>({});
   const [file, setFile] = useState<string>("");
-  const [nicknames, setNicknames] = useState<string[]>([]); // nickname 리스트 추가
-  const [selectedNickname, setSelectedNickname] = useState<string | null>(null); // 선택된 nickname
+  const [name, setName] = useState<string>("");
   const location = useLocation();
-  const data = location.state; 
+  const data = location.state;
+  const navigate = useNavigate(); 
 
   useEffect(() => {
     const fetchDestinations = async () => {
       try {
-        const data = await invoke("get_destinations"); // Call the Tauri command to fetch folder data
-        setFolderMap(data as Record<string, string[]>); // Set the fetched folder data
+        const data = await invoke("get_foldermap"); // Call the Tauri command to fetch folder data
+        const [folders, idmap] = data as [Record<string, string[]>, [string,string][]]
+        setFolderMap(folders as Record<string, string[]>); // Set the fetched folder data
+        const idMapping : Record<string,string> = {};
+        idmap.forEach(([nickname, uuid]) => {
+          idMapping[uuid] = nickname;
+        });
 
-        // Assuming the response has a list of nicknames as well
-        setNicknames(Object.keys(data as Record<string, string[]>)); // Set available nicknames from the fetched data
+        setIdMap(idMapping);
       } catch (error) {
         console.error("Error fetching destinations:", error);
       }
     };
+
 
     fetchDestinations();
     setFile(data);
@@ -110,32 +119,46 @@ const Dest: React.FC = () => {
   };
 
   const handleFolderSelect = (path: string) => {
+    path = path.substring(4);
     setSelectedFolder(path);
-    alert(`Selected folder: ${path}`);
-    invoke("send_file", {from : file ,id : selectedNickname ,dest : path})
   };
 
-  const handleNicknameSelect = (nickname: string) => {
-    setSelectedNickname(nickname);
-    alert(`Selected nickname: ${nickname}`);
+  const handleIdSelect = (uuid: string) => {
+    setSelectedId(uuid);
+
+    //alert(`Selected nickname: ${idMap[uuid]}`);
   };
+
+  const sendFile = async () => {
+    try{
+      if (selectedId) {
+        alert(`Send file: my ${file} to ${idMap[selectedId]}'s ${selectedFolder}`);
+      }
+      const result = await invoke("send_file", {id : selectedId, source : file ,target : (selectedFolder+"/"+name)});
+      console.log(result);
+      navigate("/");
+    }
+    catch(e){
+      console.log(e);
+    }
+  }
 
   if (!folderMap) {
     return <div>Loading...</div>; // Show loading message while data is being fetched
   }
 
   // Only build tree for the selected nickname
-  const folderTree = selectedNickname ? buildFolderTree(folderMap[selectedNickname]) : [];
+  const folderTree = selectedId ? buildFolderTree(folderMap[selectedId]) : [];
 
   return (
-    <div style={{ display: "flex" }}>
+    <><HomeButton /><div style={{ display: "flex" }}>
       {/* Left Sidebar for Nicknames */}
       <div style={{ width: "200px", padding: "10px", borderRight: "1px solid #ddd" }}>
         <h2>Select Nickname</h2>
         <ul>
-          {nicknames.map((nickname) => (
-            <li key={nickname} onClick={() => handleNicknameSelect(nickname)} style={{ cursor: "pointer" }}>
-              {nickname}
+          {Object.keys(idMap).map((uuid) => (
+            <li key={uuid} onClick={() => handleIdSelect(uuid)} style={{ cursor: "pointer" }}>
+              {idMap[uuid]}
             </li>
           ))}
         </ul>
@@ -153,13 +176,27 @@ const Dest: React.FC = () => {
               openState={openState}
               toggleOpen={toggleOpen}
               path={node.name}
-              onFolderSelect={handleFolderSelect}
-            />
+              onFolderSelect={handleFolderSelect} />
           ))}
         </ul>
         {selectedFolder && <p>Selected folder: {selectedFolder}</p>}
       </div>
     </div>
+    <div>
+    <label>
+        Save as:
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          style={{ marginLeft: "10px" }}
+        />
+      </label>
+      <button onClick={sendFile} style={{ marginTop: "10px" }}>
+        send
+      </button>
+    </div>
+    </>
   );
 };
 
