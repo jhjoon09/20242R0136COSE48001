@@ -11,6 +11,7 @@ use std::{
 
 use client::handler::ClientHandler;
 use event::{ClientEvent, Command, Consequence};
+use tracing_subscriber::filter::LevelFilter;
 use kudrive_common::{Client, Peer};
 use tokio::sync::{oneshot, Mutex};
 use uuid::Uuid;
@@ -21,26 +22,40 @@ pub use net::p2p;
 
 pub async fn init() {
     let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        // .with_max_level(LevelFilter::DEBUG)
+        .with_env_filter(tracing_subscriber::EnvFilter::new("info"))
+        .with_thread_names(true)
+        .with_target(true)
         .try_init();
 
     let mut handler = GLOBAL_STATE.lock().await;
     handler.start().await;
     drop(handler);
 
-    // tokio::spawn(async move {
-    //     event_loop().await.unwrap();
-    // });
+    tokio::spawn(async move {
+
+        match event_loop().await {
+            Ok(_) => {
+                tracing::info!("Event loop finished");
+            }
+            Err(e) => {
+                tracing::error!("Event loop failed: {:?}", e);
+            }
+        };
+    });
 }
 
 pub async fn event_loop() -> Result<(), Box<dyn Error>> {
-    // TODO: implement server health check
-    // TODO: implement server reconnect
-    // TODO: implement health check message send
+
     loop {
         let mut client = GLOBAL_STATE.lock().await;
-        if let Err(e) = client.event_listen().await {
-            return Err(Box::new(e));
+        match client.event_listen().await {
+            Ok(_) => {
+                // tracing::info!("Event loop worked once");
+            }
+            Err(e) => {
+                return Err(Box::new(e));
+            }
         }
         drop(client);
     }

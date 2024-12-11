@@ -31,7 +31,7 @@ pub struct ClientHandler {
 impl ClientHandler {
     pub fn new(stream: TcpStream, meta: mpsc::Sender<MetaEvent>) -> Self {
         let stream = Arc::new(Mutex::new(stream));
-        let (sender, receiver) = mpsc::channel::<ServerEvent>(1024);
+        let (sender, receiver) = mpsc::channel::<ServerEvent>(1024 * 1024);
 
         let transmitter = transmitter::Transmitter::new(stream.clone());
         let _listener = Listener::spawn(stream.clone(), sender.clone());

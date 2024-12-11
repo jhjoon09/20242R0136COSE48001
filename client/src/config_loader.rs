@@ -14,6 +14,7 @@ pub struct Config {
 pub struct ServerConfig {
     pub domain: String,
     pub port: u16,
+    pub hash: String,
     pub p2p_relay_addr: String,
 }
 
@@ -55,17 +56,27 @@ pub fn get_nickname() -> String {
     CONFIG.id.nickname.clone()
 }
 
+pub fn get_uuid() -> Uuid {
+    CONFIG.id.my_id.clone()
+}
+
 pub fn get_workspace() -> String {
     CONFIG.file.workspace.clone()
 }
 
 // Setter to update and save the configuration
 pub fn set_config(workspace: String, group_name: String, nickname: String) {
+    let domain = "".to_string();
+    let port = 7878;
+    let hash = "".to_string();
+    
     let new_config = Config {
         server: ServerConfig {
-            domain: "".to_string(),
-            port: 4001,
-            p2p_relay_addr: "".to_string(),
+            domain: domain.clone(),
+            port: port,
+            hash: hash.clone(),
+            p2p_relay_addr: format!("/ip4/{}/tcp/{}/p2p/{}", domain.clone(), 4001, hash.clone()),
+
         },
         file: FileConfig {
             workspace,

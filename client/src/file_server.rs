@@ -22,6 +22,15 @@ fn resolve_path(path: String) -> String {
     }
 }
 
+fn remove_home(path: String) -> String {
+    tracing::info!("{}", path);
+    let workspace = get_workspace();
+
+    let (_,after) = path.split_at(workspace.len());
+    println!("after {}", after);
+    format!("{}{}", "home", after)
+}
+
 fn get_files(path : String) -> FileMap {
     let path_name = resolve_path(path);
 
@@ -44,7 +53,7 @@ fn get_files(path : String) -> FileMap {
             let file_name = format!("{}/{}", path_name, file_name);
 
             if path.is_dir() {
-                folders.push(Folder { name: file_name });
+                folders.push(Folder { name: format!("{}", file_name) });
             } else {
                 files.push(File { name: file_name });
             }
@@ -57,7 +66,6 @@ fn get_files(path : String) -> FileMap {
 fn get_filemap(path : String) -> FileMap {
     let mut all_files = Vec::new();
     let mut all_folders = Vec::new();
-
     let current = get_files(path.clone());
 
     all_files.extend(current.files);
@@ -94,8 +102,14 @@ impl FileServer {
     }
 
     async fn send(responder: Sender<ClientEvent>) {
-        let files = get_files(get_workspace());
-        let event = ClientEvent::FileMapUpdate { file_map: files };
+        let files = get_filemap(get_workspace());
+
+        let all_files : Vec<File> = files.files.into_iter().map(|f| File{name : remove_home(f.name)}).collect();
+        let mut all_folders : Vec<Folder> = files.folders.into_iter().map(|f| Folder{name : remove_home(f.name)}).collect();
+    
+        all_folders.push(Folder { name: "home".to_string() });
+
+        let event = ClientEvent::FileMapUpdate { file_map: FileMap{files : all_files, folders : all_folders} };
 
         // TODO: logics for file map update
         responder.send(event).await.unwrap();
@@ -104,9 +118,9 @@ impl FileServer {
     pub async fn start(&self) {
         let responder = self.responder();
 
-        FileServer::send(responder.clone()).await;
-
         tokio::spawn(async move {
+            FileServer::send(responder.clone()).await;
+
             tracing::info!("File server started.");
 
             let config = get_config();

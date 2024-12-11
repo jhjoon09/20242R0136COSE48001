@@ -28,3 +28,4 @@ kudrive-client = { path = "../../client" }
 tokio = { workspace = true }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing.workspace = true
+uuid = "1.11.0"
