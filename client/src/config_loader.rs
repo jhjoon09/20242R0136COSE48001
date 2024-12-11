@@ -1,6 +1,8 @@
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use std::{fs, io::Write};
+use serde_yaml::{from_str, to_string};
+use std::path::PathBuf;
+use std::{fs, io::Write, path::Path};
+use tokio::sync::OnceCell;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -13,7 +15,8 @@ pub struct Config {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ServerConfig {
     pub domain: String,
-    pub port: u16,
+    pub server_port: u16,
+    pub p2p_port: u16,
     pub hash: String,
     pub p2p_relay_addr: String,
 }
@@ -21,7 +24,7 @@ pub struct ServerConfig {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FileConfig {
     pub workspace: String,
-    pub refresh_time: u32,
+    pub refresh_time: u128,
     pub ignore_list: Vec<String>, // ignore_list를 Vec<String>으로 매핑
 }
 
@@ -32,50 +35,114 @@ pub struct IdConfig {
     pub nickname: String,
 }
 
-const CONFIG_FILE_PATH: &str = "./client.yaml";
+static APP_DATA_DIR: OnceCell<PathBuf> = OnceCell::const_new();
+static HOME_DIR: OnceCell<PathBuf> = OnceCell::const_new();
+static CONFIG: OnceCell<Config> = OnceCell::const_new();
 
-lazy_static! {
-    static ref CONFIG: Config = {
-        let contents = fs::read_to_string(CONFIG_FILE_PATH).expect("Failed to read config file");
-        serde_yaml::from_str(&contents).expect("Failed to parse config file")
-    };
+pub async fn set_data_dir(save_dir: PathBuf) -> &'static PathBuf {
+    APP_DATA_DIR
+        .get_or_init(|| async {
+            let mut path = save_dir.clone();
+            path.join("config.yaml")
+        })
+        .await
 }
 
-pub fn get_config() -> &'static Config {
-    &CONFIG
+pub async fn set_home_dir(home_dir: PathBuf) -> &'static PathBuf {
+    HOME_DIR.get_or_init(|| async { home_dir.clone() }).await
+}
+
+pub async fn init_config() -> &'static Config {
+    CONFIG
+        .get_or_init(|| async {
+            let path = get_data_dir();
+            let contents = fs::read_to_string(&path).expect("Failed to read config file");
+            from_str::<Config>(&contents).expect("Failed to parse config file")
+        })
+        .await
+}
+
+pub fn get_data_dir() -> &'static PathBuf {
+    APP_DATA_DIR.get().expect("Data directory not found")
+}
+
+pub fn get_home_dir() -> &'static PathBuf {
+    HOME_DIR.get().expect("Home directory not found")
+}
+
+fn get_config() -> &'static Config {
+    CONFIG.get().expect("Config not found")
+}
+
+pub async fn is_first_run(save_dir: PathBuf, home_dir: PathBuf) -> bool {
+    let path = set_data_dir(save_dir).await;
+    let _ = set_home_dir(home_dir).await;
+    !(path.exists() && path.is_file())
 }
 
 pub fn get_relay_addr() -> String {
-    format!(
-        "/ip4/{}/tcp/{}/p2p/{}/{}",
-        CONFIG.server.domain, CONFIG.server.port, CONFIG.id.group_id, CONFIG.server.p2p_relay_addr
-    )
+    let config = get_config();
+    config.server.p2p_relay_addr.clone()
 }
 
 pub fn get_nickname() -> String {
-    CONFIG.id.nickname.clone()
+    let config = get_config();
+    config.id.nickname.clone()
+}
+
+pub fn get_group_id() -> Uuid {
+    let config = get_config();
+    config.id.group_id.clone()
+}
+
+pub fn get_server_address() -> String {
+    let config = get_config();
+    format!("{}:{}", config.server.domain, config.server.server_port)
+}
+
+pub fn get_ignore_list() -> Vec<String> {
+    let config = get_config();
+    config.file.ignore_list.clone()
+}
+
+pub fn get_refresh_time() -> u128 {
+    let config = get_config();
+    config.file.refresh_time
 }
 
 pub fn get_uuid() -> Uuid {
-    CONFIG.id.my_id.clone()
+    let config = get_config();
+    config.id.my_id.clone()
 }
 
 pub fn get_workspace() -> String {
-    CONFIG.file.workspace.clone()
+    let config = get_config();
+    config.file.workspace.clone()
 }
 
 // Setter to update and save the configuration
-pub fn set_config(workspace: String, group_name: String, nickname: String) {
-    let domain = "".to_string();
-    let port = 7878;
-    let hash = "".to_string();
+pub async fn set_config(
+    workspace: String,
+    group_name: String,
+    nickname: String,
+) -> Result<(), String> {
+    let domain = "127.0.0.1".to_string();
+    let server_port = 7878;
+    let p2p_port = 4001;
+    let hash = "12D3KooWA768LzHMatxkjD1f9DrYW375GZJr6MHPCNEdDtHeTNRt".to_string();
 
     let new_config = Config {
         server: ServerConfig {
             domain: domain.clone(),
-            port: port,
+            server_port: server_port,
+            p2p_port: p2p_port,
             hash: hash.clone(),
-            p2p_relay_addr: format!("/ip4/{}/tcp/{}/p2p/{}", domain.clone(), 4001, hash.clone()),
+            p2p_relay_addr: format!(
+                "/ip4/{}/tcp/{}/p2p/{}",
+                domain.clone(),
+                p2p_port,
+                hash.clone()
+            ),
         },
         file: FileConfig {
             workspace,
@@ -89,11 +156,23 @@ pub fn set_config(workspace: String, group_name: String, nickname: String) {
         },
     };
 
-    let yaml_content = serde_yaml::to_string(&new_config).expect("Failed to serialize config");
+    let yaml_content = to_string(&new_config).expect("Failed to serialize config");
 
-    let mut file = std::fs::File::create(CONFIG_FILE_PATH).expect("Failed to create config file");
+    let file_pos = get_data_dir();
+
+    let path = Path::new(&file_pos);
+
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).expect("Failed to create config directory");
+        }
+    }
+
+    let mut file = std::fs::File::create(path).expect("Failed to create config file");
     file.write_all(yaml_content.as_bytes())
         .expect("Failed to write to config file");
 
     println!("Configuration successfully updated!");
+
+    Ok(())
 }

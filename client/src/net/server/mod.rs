@@ -8,7 +8,7 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 
-use crate::config_loader::get_config;
+use crate::config_loader::{get_group_id, get_nickname, get_server_address, get_uuid};
 use crate::event::ClientEvent;
 
 pub struct Server {
@@ -31,8 +31,7 @@ impl Server {
     }
 
     pub async fn connect(&mut self, sender: Sender<ClientEvent>) -> io::Result<()> {
-        let config = get_config();
-        let address = format!("{}:{}", config.server.domain, config.server.port);
+        let address = get_server_address();
 
         // create tcp stream
         let stream = TcpStream::connect(address).await?;
@@ -46,11 +45,10 @@ impl Server {
     }
 
     pub async fn register(&mut self) -> io::Result<()> {
-        let config = &get_config();
         let client = Client {
-            group: config.id.group_id,
-            id: config.id.my_id,
-            nickname: config.id.nickname.clone(),
+            group: get_group_id(),
+            id: get_uuid(),
+            nickname: get_nickname(),
             files: FileMap {
                 files: vec![],
                 folders: vec![],

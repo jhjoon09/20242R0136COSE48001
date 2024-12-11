@@ -1,59 +1,49 @@
-use dirs;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::PathBuf;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use std::sync::{Arc, LazyLock};
 
-use kudrive_client::config_loader::{get_uuid, set_config};
+use kudrive_client::config_loader::{
+    get_nickname as get_nick, get_uuid, init_config as init_conf, set_config,
+};
+use kudrive_client::file_server::resolve_path;
 use kudrive_client::init as client_init;
 use kudrive_client::{clients, file_receive, file_send};
 use tracing_subscriber::EnvFilter;
 
-const CONFIG_FILE_PATH: &str = "./client.yaml";
-
 static GLOBAL_STATE: LazyLock<Arc<Mutex<bool>>> = LazyLock::new(|| Arc::new(Mutex::new(true)));
 
-fn resolve_path(path: String) -> String {
-    if path.starts_with("~") {
-        let home_dir = dirs::home_dir().expect("Failed to get home directory");
-        let home_dir = home_dir.to_str().unwrap().replace("\\", "/");
-        path.replacen("~", &home_dir, 1)
-    } else {
-        path
-    }
+#[tauri::command]
+async fn is_first_run(savedir: String, homedir: String) -> bool {
+    kudrive_client::config_loader::is_first_run(PathBuf::from(savedir), PathBuf::from(homedir))
+        .await
 }
 
 #[tauri::command]
-fn is_first_run() -> bool {
-    let path = Path::new(CONFIG_FILE_PATH);
-    !(path.exists() && path.is_file())
-}
-
-#[tauri::command]
-fn init_config(workspace: String, group: String, nickname: String) {
+async fn init_config(workspace: String, group: String, nickname: String) -> Result<(), String> {
     let workspace = resolve_path(workspace);
-    set_config(workspace, group, nickname);
+    set_config(workspace, group, nickname).await
 }
 
 #[tauri::command]
 fn get_nickname() -> String {
-    let config = kudrive_client::config_loader::get_config();
-    config.id.nickname.clone()
+    get_nick()
 }
 
 #[tauri::command]
-async fn init_client() {
+async fn init_client() -> Result<(), String> {
     let mut is_first = GLOBAL_STATE.lock().await;
     if *is_first {
+        init_conf().await;
         client_init().await;
         *is_first = false;
         drop(is_first);
-        return;
+        return Ok(());
     }
 
-    return;
+    Ok(())
 }
 
 #[derive(serde::Serialize)]

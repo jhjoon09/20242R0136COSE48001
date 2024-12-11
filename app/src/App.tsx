@@ -8,6 +8,7 @@ import Receive from "./files/Receive.tsx";
 import HomeButton from "./component/HomeButton.tsx";
 import Dest from "./files/Dest.tsx";
 import MyDest from "./files/MyDest.tsx";
+import { appConfigDir, appDataDir, homeDir } from "@tauri-apps/api/path";
 
 // 메인 페이지
 function MainPage() {
@@ -15,20 +16,18 @@ function MainPage() {
 
   const navigate = useNavigate();
 
-  //if (activeView === "send") return <SendComponent />;
-  //if (activeView === "receive") return <ReceiveComponent />;
 
   useEffect(() => {
     async function greet() {
       try {
-        const is_first_run = await invoke("is_first_run");
+        const is_first_run = await invoke("is_first_run", {savedir : await appConfigDir(), homedir : await homeDir()});
         if (is_first_run) {
           setGreetMsg("Please set your nickname in the settings.");
           navigate("/settings");
         } else {
-          const nickname = await invoke("get_nickname");
-          setGreetMsg(`Hello, ${nickname}!`);
           await invoke("init_client");
+          const nickname = await invoke<String>("get_nickname");
+          setGreetMsg(`Hello, ${nickname}!`);
         }
       } catch (error) {
         console.error("Error fetching nickname:", error);

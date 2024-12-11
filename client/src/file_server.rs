@@ -1,4 +1,4 @@
-use crate::config_loader::{get_config, get_workspace};
+use crate::config_loader::{get_home_dir, get_ignore_list, get_refresh_time, get_workspace};
 use crate::event::ClientEvent;
 use dirs;
 use kudrive_common::fs::{File, FileMap, Folder};
@@ -12,22 +12,18 @@ pub struct FileServer {
     responder: Sender<ClientEvent>,
 }
 
-fn resolve_path(path: String) -> String {
+pub fn resolve_path(path: String) -> String {
     if path.starts_with("~") {
-        let home_dir = dirs::home_dir().expect("Failed to get home directory");
-        let home_dir = home_dir.to_str().unwrap().replace("\\", "/");
-        path.replacen("~", &home_dir, 1)
+        let home_dir = get_home_dir().to_str().expect("Failed to get home dir");
+        path.replacen("~", home_dir, 1)
     } else {
         path
     }
 }
 
 fn remove_home(path: String) -> String {
-    tracing::info!("{}", path);
     let workspace = get_workspace();
-
     let (_, after) = path.split_at(workspace.len());
-    println!("after {}", after);
     format!("{}{}", "home", after)
 }
 
@@ -144,22 +140,19 @@ impl FileServer {
 
             tracing::info!("File server started.");
 
-            let config = get_config();
-            let path = &config.file.workspace;
-            let exclude_patterns = config
-                .file
-                .ignore_list
+            let path = get_workspace();
+            let exclude_patterns = get_ignore_list()
                 .iter()
                 .map(|pattern| Regex::new(pattern).unwrap())
                 .collect::<Vec<Regex>>();
-            let delay_time = config.file.refresh_time as u128;
+            let delay_time = get_refresh_time as u128;
 
             let (tx, rx) = mpsc::channel::<Result<Event>>();
             let mut watcher: RecommendedWatcher =
                 notify::recommended_watcher(tx).expect("watcher error");
 
             watcher
-                .watch(Path::new(path), RecursiveMode::Recursive)
+                .watch(Path::new(&path), RecursiveMode::Recursive)
                 .expect("watch error");
 
             let mut now = std::time::Instant::now();

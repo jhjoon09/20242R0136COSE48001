@@ -1,7 +1,6 @@
 use std::{path::PathBuf, time::Duration};
 
 use crate::{
-    config_loader::get_config,
     event::{ClientEvent, Command, Consequence},
     file_server::FileServer,
     net::{p2p::P2PTransport, server::Server},
@@ -13,6 +12,8 @@ use kudrive_common::{
     pending::Pendings,
     Client,
 };
+
+use crate::config_loader::{get_relay_addr, get_uuid, get_workspace};
 use tokio::sync::{
     mpsc::{self, error::TryRecvError, Receiver, Sender},
     oneshot,
@@ -31,17 +32,15 @@ pub struct ClientHandler {
 
 impl ClientHandler {
     pub fn new() -> Self {
-        let cfg = get_config();
-
         // create event channel
         let channel = mpsc::channel::<ClientEvent>(1024 * 1024);
         let (sender, receiver) = channel;
 
         let p2p_transport = P2PTransport::new(
-            cfg.server.p2p_relay_addr.as_str(),
-            cfg.id.my_id.to_string().as_str(),
+            get_relay_addr().as_str(),
+            get_uuid().to_string().as_str(),
             sender.clone(),
-            PathBuf::from(cfg.file.workspace.clone()),
+            PathBuf::from(get_workspace()),
         )
         .expect("Failed to create P2P client");
         tracing::info!("P2P Transport warming up....");
