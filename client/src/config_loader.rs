@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use serde::{ Deserialize, Serialize };
+use serde::{Deserialize, Serialize};
 use std::{fs, io::Write};
 use uuid::Uuid;
 
@@ -36,10 +36,8 @@ const CONFIG_FILE_PATH: &str = "./client.yaml";
 
 lazy_static! {
     static ref CONFIG: Config = {
-        let contents = fs::read_to_string(CONFIG_FILE_PATH)
-            .expect("Failed to read config file");
-        serde_yaml::from_str(&contents)
-            .expect("Failed to parse config file")
+        let contents = fs::read_to_string(CONFIG_FILE_PATH).expect("Failed to read config file");
+        serde_yaml::from_str(&contents).expect("Failed to parse config file")
     };
 }
 
@@ -47,9 +45,11 @@ pub fn get_config() -> &'static Config {
     &CONFIG
 }
 
-
 pub fn get_relay_addr() -> String {
-    format!("/ip4/{}/tcp/{}/p2p/{}/{}", CONFIG.server.domain, CONFIG.server.port, CONFIG.id.group_id, CONFIG.server.p2p_relay_addr)
+    format!(
+        "/ip4/{}/tcp/{}/p2p/{}/{}",
+        CONFIG.server.domain, CONFIG.server.port, CONFIG.id.group_id, CONFIG.server.p2p_relay_addr
+    )
 }
 
 pub fn get_nickname() -> String {
@@ -69,14 +69,13 @@ pub fn set_config(workspace: String, group_name: String, nickname: String) {
     let domain = "".to_string();
     let port = 7878;
     let hash = "".to_string();
-    
+
     let new_config = Config {
         server: ServerConfig {
             domain: domain.clone(),
             port: port,
             hash: hash.clone(),
             p2p_relay_addr: format!("/ip4/{}/tcp/{}/p2p/{}", domain.clone(), 4001, hash.clone()),
-
         },
         file: FileConfig {
             workspace,

@@ -10,9 +10,8 @@ pub struct Folder {
     pub name: String,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileMap {
     pub files: Vec<File>,
-    pub folders : Vec<Folder>
+    pub folders: Vec<Folder>,
 }

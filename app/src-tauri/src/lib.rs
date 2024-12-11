@@ -1,23 +1,21 @@
 use dirs;
 use std::collections::HashMap;
 use std::path::Path;
-use uuid::Uuid;
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 use std::sync::{Arc, LazyLock};
 
+use kudrive_client::config_loader::{get_uuid, set_config};
 use kudrive_client::init as client_init;
-use kudrive_client::config_loader::{set_config, get_uuid};
-use kudrive_client::{file_send, file_receive, clients};
+use kudrive_client::{clients, file_receive, file_send};
 use tracing_subscriber::EnvFilter;
 
 const CONFIG_FILE_PATH: &str = "./client.yaml";
 
+static GLOBAL_STATE: LazyLock<Arc<Mutex<bool>>> = LazyLock::new(|| Arc::new(Mutex::new(true)));
 
-static GLOBAL_STATE: LazyLock<Arc<Mutex<bool>>> =
-    LazyLock::new(|| Arc::new(Mutex::new(true)));
-
-fn resolve_path(path: String) -> String{
+fn resolve_path(path: String) -> String {
     if path.starts_with("~") {
         let home_dir = dirs::home_dir().expect("Failed to get home directory");
         let home_dir = home_dir.to_str().unwrap().replace("\\", "/");
@@ -28,7 +26,7 @@ fn resolve_path(path: String) -> String{
 }
 
 #[tauri::command]
-fn is_first_run() -> bool{
+fn is_first_run() -> bool {
     let path = Path::new(CONFIG_FILE_PATH);
     !(path.exists() && path.is_file())
 }
@@ -51,7 +49,7 @@ async fn init_client() {
     if *is_first {
         client_init().await;
         *is_first = false;
-        drop(is_first);        
+        drop(is_first);
         return;
     }
 
@@ -73,7 +71,7 @@ fn get_files(path: String) -> DirectoryContents {
 
     // 디렉토리 읽기
     let paths = std::fs::read_dir(&path).expect("Failed to read directory");
-    
+
     for entry in paths {
         let entry = entry.unwrap();
         let path = entry.path();
@@ -92,7 +90,7 @@ fn get_files(path: String) -> DirectoryContents {
 }
 
 #[tauri::command]
-async fn get_filemap() -> (HashMap<String, Vec<String>>,Vec<(String,String)>) {
+async fn get_filemap() -> (HashMap<String, Vec<String>>, Vec<(String, String)>) {
     let client_data = clients().await;
 
     let mut map = HashMap::new();
@@ -102,7 +100,7 @@ async fn get_filemap() -> (HashMap<String, Vec<String>>,Vec<(String,String)>) {
         Ok(clients) => {
             for client in clients {
                 if client.id == my_id {
-                    //continue;
+                    continue;
                 }
 
                 let mut file_vec = vec![];
@@ -113,17 +111,17 @@ async fn get_filemap() -> (HashMap<String, Vec<String>>,Vec<(String,String)>) {
                 map.insert(client.id.to_string().clone(), file_vec);
                 id_map.push((client.nickname.clone(), client.id.clone().to_string()));
             }
-            (map,id_map)
+            (map, id_map)
         }
         Err(e) => {
             eprintln!("Failed to get clients: {:?}", e);
-            (HashMap::new(),vec![])
+            (HashMap::new(), vec![])
         }
     }
 }
 
 #[tauri::command]
-async fn get_foldermap() -> (HashMap<String, Vec<String>>,Vec<(String,String)>) {
+async fn get_foldermap() -> (HashMap<String, Vec<String>>, Vec<(String, String)>) {
     let client_data = clients().await;
 
     let mut map = HashMap::new();
@@ -133,8 +131,7 @@ async fn get_foldermap() -> (HashMap<String, Vec<String>>,Vec<(String,String)>) 
     match client_data {
         Ok(clients) => {
             for client in clients {
-
-                if client.id == my_id{
+                if client.id == my_id {
                     continue;
                 }
 
@@ -149,11 +146,11 @@ async fn get_foldermap() -> (HashMap<String, Vec<String>>,Vec<(String,String)>) 
             }
 
             println!("{:?}", map);
-            (map,id_map)
+            (map, id_map)
         }
         Err(e) => {
             eprintln!("Failed to get clients: {:?}", e);
-            (HashMap::new(),vec![])
+            (HashMap::new(), vec![])
         }
     }
 }
@@ -161,8 +158,8 @@ async fn get_foldermap() -> (HashMap<String, Vec<String>>,Vec<(String,String)>) 
 #[tauri::command]
 async fn send_file(id: Uuid, source: String, target: String) -> Result<(), String> {
     let source = resolve_path(source);
-    
-    println!("from {} to {} who {}", source , target, id);
+
+    println!("from {} to {} who {}", source, target, id);
 
     file_send(id, source, target).await
 }
@@ -170,7 +167,7 @@ async fn send_file(id: Uuid, source: String, target: String) -> Result<(), Strin
 #[tauri::command]
 async fn recive_file(id: Uuid, source: String, target: String) -> Result<(), String> {
     let target = resolve_path(target);
-    println!("from {} to {} who {}", source , target, id);
+    println!("from {} to {} who {}", source, target, id);
     file_receive(id, source, target).await
 }
 
@@ -202,7 +199,7 @@ pub fn run() {
             get_filemap,
             get_foldermap,
             send_file,
-            recive_file            
+            recive_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

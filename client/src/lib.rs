@@ -11,9 +11,9 @@ use std::{
 
 use client::handler::ClientHandler;
 use event::{ClientEvent, Command, Consequence};
-use tracing_subscriber::filter::LevelFilter;
 use kudrive_common::{Client, Peer};
 use tokio::sync::{oneshot, Mutex};
+use tracing_subscriber::filter::LevelFilter;
 use uuid::Uuid;
 
 static GLOBAL_STATE: LazyLock<Arc<Mutex<ClientHandler>>> =
@@ -33,7 +33,6 @@ pub async fn init() {
     drop(handler);
 
     tokio::spawn(async move {
-
         match event_loop().await {
             Ok(_) => {
                 tracing::info!("Event loop finished");
@@ -46,7 +45,6 @@ pub async fn init() {
 }
 
 pub async fn event_loop() -> Result<(), Box<dyn Error>> {
-
     loop {
         let mut client = GLOBAL_STATE.lock().await;
         match client.event_listen().await {
