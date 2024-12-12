@@ -33,11 +33,16 @@ fn get_nickname() -> String {
 }
 
 #[tauri::command]
+async fn load_config() {
+    init_conf().await;
+}
+
+#[tauri::command]
 async fn init_client() -> Result<(), String> {
     let mut is_first = GLOBAL_STATE.lock().await;
     if *is_first {
-        init_conf().await;
         client_init().await;
+        println!("Client initialized");
         *is_first = false;
         drop(is_first);
         return Ok(());
@@ -168,22 +173,13 @@ pub fn run() {
         .try_init();
 
     tauri::Builder::default()
-        .setup(|app| {
-            tokio::task::spawn(async move {
-                loop {
-                    // Client core init here...
-                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-                    tracing::info!("Hello from the background");
-                }
-            });
-            Ok(())
-        })
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             is_first_run,
             init_config,
             get_nickname,
+            load_config,
             init_client,
             get_files,
             get_filemap,

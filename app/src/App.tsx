@@ -20,21 +20,33 @@ function MainPage() {
   useEffect(() => {
     async function greet() {
       try {
-        const is_first_run = await invoke("is_first_run", {savedir : await appConfigDir(), homedir : await homeDir()});
-        if (is_first_run) {
-          setGreetMsg("Please set your nickname in the settings.");
-          navigate("/settings");
-        } else {
-          await invoke("init_client");
-          const nickname = await invoke<String>("get_nickname");
-          setGreetMsg(`Hello, ${nickname}!`);
-        }
+        const nickname = await invoke<String>("get_nickname");
+        console.log(nickname);
+        setGreetMsg(`Hello, ${nickname}!`);
       } catch (error) {
         console.error("Error fetching nickname:", error);
       }
     }
 
-    greet();
+    async function init() {
+      try {
+        const is_first_run = await invoke("is_first_run", {savedir : await appConfigDir(), homedir : await homeDir()});
+        if (is_first_run) {
+          setGreetMsg("Please set your nickname in the settings.");
+          navigate("/settings");
+          return;
+        } 
+        await invoke("load_config");
+        await greet();
+        await invoke("init_client");   
+        alert("Server Connected");           
+      } catch (error) {
+        console.error("Error fetching init:", error);
+      }
+    }
+
+
+    init();
   }, [navigate]);
 
   return (
