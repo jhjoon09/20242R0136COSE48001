@@ -1,4 +1,19 @@
-.logo.vite:hover {
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+  }
+}
+
+/* .logo.vite:hover {
   filter: drop-shadow(0 0 2em #747bff);
 }
 
@@ -113,4 +128,4 @@ button {
   button:active {
     background-color: #0f0f0f69;
   }
-}
+} */
