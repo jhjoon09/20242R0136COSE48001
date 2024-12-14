@@ -42,7 +42,7 @@ static CONFIG: OnceCell<Config> = OnceCell::const_new();
 pub async fn set_data_dir(save_dir: PathBuf) -> &'static PathBuf {
     APP_DATA_DIR
         .get_or_init(|| async {
-            let mut path = save_dir.clone();
+            let path = save_dir.clone();
             path.join("config.yaml")
         })
         .await

@@ -8,7 +8,7 @@ import Receive from "./files/Receive.tsx";
 import HomeButton from "./component/HomeButton.tsx";
 import Dest from "./files/Dest.tsx";
 import MyDest from "./files/MyDest.tsx";
-import { appConfigDir, appDataDir, homeDir } from "@tauri-apps/api/path";
+import { appConfigDir, homeDir } from "@tauri-apps/api/path";
 
 // 메인 페이지
 function MainPage() {

@@ -85,7 +85,7 @@ fn get_files(path: String) -> DirectoryContents {
 }
 
 #[tauri::command]
-async fn get_filemap() -> (HashMap<String, Vec<String>>, Vec<(String, String)>) {
+async fn get_filemap() -> (HashMap<String, Vec<String>>, Vec<((String, String), String)>) {
     let client_data = clients().await;
 
     let mut map = HashMap::new();
@@ -104,7 +104,7 @@ async fn get_filemap() -> (HashMap<String, Vec<String>>, Vec<(String, String)>) 
                 }
 
                 map.insert(client.id.to_string().clone(), file_vec);
-                id_map.push((client.nickname.clone(), client.id.clone().to_string()));
+                id_map.push(((client.nickname.clone(), client.id.clone().to_string()), client.files.os.name));
             }
             (map, id_map)
         }
@@ -116,7 +116,7 @@ async fn get_filemap() -> (HashMap<String, Vec<String>>, Vec<(String, String)>) 
 }
 
 #[tauri::command]
-async fn get_foldermap() -> (HashMap<String, Vec<String>>, Vec<(String, String)>) {
+async fn get_foldermap() -> (HashMap<String, Vec<String>>, Vec<((String, String), String)>) {
     let client_data = clients().await;
 
     let mut map = HashMap::new();
@@ -137,7 +137,7 @@ async fn get_foldermap() -> (HashMap<String, Vec<String>>, Vec<(String, String)>
 
                 let key = client.id.clone().to_string();
                 map.insert(key, folder_vec);
-                id_map.push((client.nickname.clone(), client.id.clone().to_string()));
+                id_map.push(((client.nickname.clone(), client.id.clone().to_string()), client.files.os.name));
             }
 
             println!("{:?}", map);

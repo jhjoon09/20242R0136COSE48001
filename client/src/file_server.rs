@@ -1,7 +1,6 @@
 use crate::config_loader::{get_home_dir, get_ignore_list, get_refresh_time, get_workspace};
 use crate::event::ClientEvent;
-use dirs;
-use kudrive_common::fs::{File, FileMap, Folder};
+use kudrive_common::fs::{OS, File, FileMap, Folder};
 use notify::{Event, RecommendedWatcher, RecursiveMode, Result, Watcher};
 use regex::Regex;
 use std::path::{Path, PathBuf};
@@ -30,12 +29,13 @@ fn remove_home(path: String) -> String {
 fn get_files(path: String) -> FileMap {
     let path_name = resolve_path(path);
 
+    let os = OS { name: std::env::consts::OS.to_string() };
     let mut files = Vec::new();
     let mut folders = Vec::new();
 
     let paths = match std::fs::read_dir(&path_name) {
         Ok(entries) => entries,
-        Err(_) => return FileMap { files, folders },
+        Err(_) => return FileMap { os, files, folders },
     };
 
     for entry in paths {
@@ -58,10 +58,11 @@ fn get_files(path: String) -> FileMap {
         }
     }
 
-    FileMap { files, folders }
+    FileMap { os, files, folders }
 }
 
 fn get_filemap(path: String) -> FileMap {
+    let os =  OS { name: std::env::consts::OS.to_string() };
     let mut all_files = Vec::new();
     let mut all_folders = Vec::new();
     let current = get_files(path.clone());
@@ -76,6 +77,7 @@ fn get_filemap(path: String) -> FileMap {
     }
 
     FileMap {
+        os: os,
         files: all_files,
         folders: all_folders,
     }
@@ -90,6 +92,38 @@ fn check_exclude(path: &PathBuf, patterns: &[Regex]) -> bool {
     })
 }
 
+pub fn get_resolved_filemap() -> FileMap {
+    let files = get_filemap(get_workspace());
+
+    let os =  OS { name: std::env::consts::OS.to_string() };
+
+    let all_files: Vec<File> = files
+        .files
+        .into_iter()
+        .map(|f| File {
+            name: remove_home(f.name),
+        })
+        .collect();
+
+    let mut all_folders: Vec<Folder> = files
+        .folders
+        .into_iter()
+        .map(|f| Folder {
+            name: remove_home(f.name),
+        })
+        .collect();
+
+    all_folders.push(Folder {
+        name: "home/".to_string(),
+    });
+
+    FileMap {
+        os: os,
+        files: all_files,
+        folders: all_folders,
+    }
+}
+
 impl FileServer {
     pub fn new(responder: Sender<ClientEvent>) -> Self {
         Self { responder }
@@ -100,32 +134,10 @@ impl FileServer {
     }
 
     async fn send(responder: Sender<ClientEvent>) {
-        let files = get_filemap(get_workspace());
-
-        let all_files: Vec<File> = files
-            .files
-            .into_iter()
-            .map(|f| File {
-                name: remove_home(f.name),
-            })
-            .collect();
-        let mut all_folders: Vec<Folder> = files
-            .folders
-            .into_iter()
-            .map(|f| Folder {
-                name: remove_home(f.name),
-            })
-            .collect();
-
-        all_folders.push(Folder {
-            name: "home/".to_string(),
-        });
+        let files = get_resolved_filemap();
 
         let event = ClientEvent::FileMapUpdate {
-            file_map: FileMap {
-                files: all_files,
-                folders: all_folders,
-            },
+            file_map: files,
         };
 
         // TODO: logics for file map update
