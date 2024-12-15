@@ -335,7 +335,6 @@ const RemoteExplorer: React.FC<RemoteExplorerProps> = ({
     paths.forEach((path) => {
       const parts = path.split('/').filter(Boolean);
       let currentPath = '';
-      let currentLevel = root;
 
       parts.forEach((part, index) => {
         currentPath = currentPath ? `${currentPath}/${part}` : part;

@@ -203,8 +203,13 @@ impl FileServer {
                                 tracing::info!("removed");
                             }
 
-                            notify::EventKind::Other() => {
+                            notify::EventKind::Other => {
                                 tracing::info!("other");
+                            }
+
+                            notify::EventKind::Any => {
+                                tracing::info!("any");
+                                continue;
                             }
                         }
 
