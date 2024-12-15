@@ -72,7 +72,7 @@ impl Server {
     }
 
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let listener = TcpListener::bind("127.0.0.1:7878").await?;
+        let listener = TcpListener::bind("0.0.0.0:7878").await?;
         let channel = mpsc::channel::<MetaEvent>(1024);
 
         let (sender, mut receiver) = channel;
