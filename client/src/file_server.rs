@@ -175,16 +175,24 @@ impl FileServer {
                         }
 
                         match event.kind {
+                            notify::EventKind::Access(_any) => {
+                                tracing::info!("accessed");
+                                continue;
+                            }
                             notify::EventKind::Create(_any) => {
                                 tracing::info!("created");
+                            }
+
+                            notify::EventKind::Modify(_any) => {
+                                tracing::info!("modified");
                             }
 
                             notify::EventKind::Remove(_any) => {
                                 tracing::info!("removed");
                             }
 
-                            _ => {
-                                continue;
+                            notify::EventKind::Other() => {
+                                tracing::info!("other");
                             }
                         }
 
