@@ -23,7 +23,6 @@ tauri-plugin-shell = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 tauri-plugin-fs = "2"
-dirs = "5.0.1"
 kudrive-client = { path = "../../client" }
 tokio = { workspace = true }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

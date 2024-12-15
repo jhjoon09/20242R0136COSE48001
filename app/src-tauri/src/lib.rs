@@ -6,7 +6,7 @@ use uuid::Uuid;
 use std::sync::{Arc, LazyLock};
 
 use kudrive_client::config_loader::{
-    get_nickname as get_nick, get_uuid, init_config as init_conf, set_config,
+    self, get_nickname as get_nick, get_uuid, init_config as init_conf, set_config,
 };
 use kudrive_client::file_server::resolve_path;
 use kudrive_client::init as client_init;
@@ -38,6 +38,20 @@ async fn load_config() {
 }
 
 #[tauri::command]
+fn get_workspace() -> String {
+    config_loader::get_workspace()
+}
+
+#[tauri::command]
+async fn get_clients() -> Result<Vec<String>, String> {
+    if let Ok(clients) = clients().await {
+        Ok(clients.iter().map(|client| client.nickname.clone()).collect())
+    } else {
+        Err("Failed to get clients".to_string())
+    }
+}
+
+#[tauri::command]
 async fn init_client() -> Result<(), String> {
     let mut is_first = GLOBAL_STATE.lock().await;
     if *is_first {
@@ -50,7 +64,6 @@ async fn init_client() -> Result<(), String> {
 
     Ok(())
 }
-
 #[derive(serde::Serialize)]
 struct DirectoryContents {
     files: Vec<String>,
@@ -185,7 +198,9 @@ pub fn run() {
             get_filemap,
             get_foldermap,
             send_file,
-            recive_file
+            recive_file,
+            get_workspace,
+            get_clients
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,14 +1,15 @@
-import { useState, useEffect } from "react";
-import { useNavigate, Routes, Route } from "react-router-dom";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
-import Settings from "./Setting.tsx";
-import Send from "./files/Send.tsx";
-import Receive from "./files/Receive.tsx";
-import HomeButton from "./component/HomeButton.tsx";
-import Dest from "./files/Dest.tsx";
-import MyDest from "./files/MyDest.tsx";
-import { appConfigDir, homeDir } from "@tauri-apps/api/path";
+import { useState, useEffect } from 'react';
+import { useNavigate, Routes, Route } from 'react-router-dom';
+import { invoke } from '@tauri-apps/api/core';
+import './App.css';
+import Settings from './Setting.tsx';
+import Send from './files/Send.tsx';
+import Receive from './files/Receive.tsx';
+import HomeButton from './component/HomeButton.tsx';
+import Dest from './files/Dest.tsx';
+import MyDest from './files/MyDest.tsx';
+import { appConfigDir, homeDir } from '@tauri-apps/api/path';
+import DeviceExplorer from './explorer/DeviceExplorer';
 
 // 메인 페이지
 function MainPage() {
@@ -97,10 +98,23 @@ function MainPage() {
       >
         Go to Receive
       </button>
+      <button
+        onClick={() => navigate('/device-explorer')}
+        style={{
+          margin: '10px',
+          padding: '10px 20px',
+          cursor: 'pointer',
+          background: '#4caf50',
+          color: 'white',
+          border: 'none',
+          borderRadius: '5px',
+        }}
+      >
+        Go to Device Explorer
+      </button>
     </div>
   );
 }
-
 
 // App 컴포넌트
 function App() {
@@ -112,6 +126,7 @@ function App() {
       <Route path="/dest" element={<Dest />} />
       <Route path="/receive" element={<Receive />} />
       <Route path="/my-dest" element={<MyDest />} />
+      <Route path="/device-explorer" element={<DeviceExplorer />} />
     </Routes>
   );
 }
