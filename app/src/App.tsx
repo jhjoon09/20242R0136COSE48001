@@ -40,27 +40,25 @@ function MainPage() {
   }, [navigate]);
 
   return (
-    <div>
-      <div>
-        <h1>{greetMsg}</h1>
-        <h2>{workspace}</h2>
-        <h2>{isConnected ? "Connected" : "Connecting to Server"}</h2>
-      </div>
-      <button
-        onClick={() => navigate('/device-explorer')}
-        style={{
-          margin: '10px',
-          padding: '10px 20px',
-          cursor: 'pointer',
-          background: '#4caf50',
-          color: 'white',
-          border: 'none',
-          borderRadius: '5px',
-        }}
-      >
-        Go to Device Explorer
-      </button>
+    <div className="main">
+    <div className="main-container">
+    <div className="main-content">
+      <h1>{greetMsg}</h1>
+      <h2>{workspace}</h2>
+      <h2>{isConnected ? "Connected" : "Connecting to Server"}</h2>
     </div>
+    <div className="button-group">
+    {isConnected && (
+    <button
+      onClick={() => navigate('/device-explorer')}
+      className="button green"
+    >
+      Go to Device Explorer
+    </button>
+    )}
+    </div>
+  </div>
+</div>
   );
 }
 
@@ -69,7 +67,10 @@ function Init() {
   useEffect(() => {
     async function is_first() {
       try {
-        const is_first_run = await invoke("is_first_run", {savedir : await appConfigDir(), homedir : await homeDir()});
+        const savedir = await appConfigDir();
+        const homedir = await homeDir();
+        await invoke("set_config_path", {savedir, homedir});
+        const is_first_run = await invoke<boolean>("is_first_run");
         if (is_first_run) {
           navigate("/settings", {replace: true});
           return;
@@ -88,41 +89,25 @@ function Init() {
   }
 
   return (
-    <div>
-      <h1>Welcome</h1>
-      <div>
-        <button
-          onClick={() => navigate("/settings", {replace: true})}
-          style={{
-            margin: "10px",
-            padding: "10px 20px",
-            cursor: "pointer",
-            background: "#4caf50",
-            color: "white",
-            border: "none",
-            borderRadius: "5px",
-          }}
-          >
-          Go to Settings
-          </button>
-
-        <button
-          onClick={() => init_client()}
-          style={{
-            margin: "10px",
-            padding: "10px 20px",
-            cursor: "pointer",
-            background: "#2196f3",
-            color: "white",
-            border: "none",
-            borderRadius: "5px",
-          }}
-        >
-          Go to Home
-        </button>
-
-      </div>
+    <div className="init">
+    <div className="init-container">
+    <h1>Welcome</h1>
+    <div className="button-group">
+      <button
+        onClick={() => navigate('/settings')}
+        className="button green"
+      >
+        Go to Settings
+      </button>
+      <button
+        onClick={() => init_client()}
+        className="button blue"
+      >
+        Go to Home
+      </button>
     </div>
+  </div>
+  </div>
   );
 }
 

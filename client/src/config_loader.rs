@@ -74,9 +74,13 @@ fn get_config() -> &'static Config {
     CONFIG.get().expect("Config not found")
 }
 
-pub async fn is_first_run(save_dir: PathBuf, home_dir: PathBuf) -> bool {
-    let path = set_data_dir(save_dir).await;
-    let _ = set_home_dir(home_dir).await;
+pub async fn set_config_path(save_dir: PathBuf, home_dir: PathBuf) {
+    set_data_dir(save_dir).await;
+    set_home_dir(home_dir).await;
+}
+
+pub async fn is_first_run() -> bool {
+    let path = get_data_dir();
     !(path.exists() && path.is_file())
 }
 
@@ -172,7 +176,7 @@ pub async fn set_config(
     file.write_all(yaml_content.as_bytes())
         .expect("Failed to write to config file");
 
-    println!("Configuration successfully updated!");
+    tracing::info!("Configuration successfully updated!");
 
     Ok(())
 }

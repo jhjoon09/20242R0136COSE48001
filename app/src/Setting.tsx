@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
+import "./Settings.css"; // CSS 파일을 import
 
 interface DirectoryContents {
   folders: string[];
 }
 
 const Settings: React.FC = () => {
+  const [isFirst, setIsFirst] = useState<boolean>(true);
   const [nickname, setNickname] = useState<string>("");
   const [workspace, setWorkspace] = useState<string>("~");
   const [group, setGroup] = useState<string>("");
@@ -14,6 +16,13 @@ const Settings: React.FC = () => {
   const [folders, setFolders] = useState<string[]>([]);
   const [currentPath, setCurrentPath] = useState<string>("~");
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkFirst = async () => {
+      setIsFirst(await invoke("is_first_run"));
+    };
+    checkFirst();
+  }, []);
 
   // 디렉토리 목록 가져오기
   const fetchFolders = async (path: string) => {
@@ -51,12 +60,21 @@ const Settings: React.FC = () => {
     setOpenWorkspace(false);
   };
 
+  const goMain = async () => {
+    await invoke("load_config");
+    navigate("/main", { replace: true });
+  }
+
   // 설정 저장
   const saveSetting = async () => {
     try {
-      await invoke("init_config", { workspace: workspace, group : group, nickname :nickname });
+      await invoke("init_config", {
+        workspace: workspace,
+        group: group,
+        nickname: nickname,
+      });
       await invoke("load_config");
-      navigate("/main", {replace: true});
+      navigate("/main", { replace: true });
     } catch (error) {
       console.error("Error saving:", error);
       alert("Failed to save. Try again.");
@@ -65,34 +83,28 @@ const Settings: React.FC = () => {
 
   if (openWorkspace) {
     return (
-      <div style={{ padding: "20px" }}>
-        <h1>Select Workspace Directory</h1>
-        <p>Current Path: {currentPath}</p>
-        <button onClick={handleGoUp} disabled={currentPath === "~/"}>Go Up</button>
-        <ul>
+      <div className="settings-container">
+        <h1 className="settings-header">Select Workspace Directory</h1>
+        <p className="settings-path">Current Path: {currentPath}</p>
+        <button
+          className="settings-button"
+          onClick={handleGoUp}
+          disabled={currentPath === "~/"}
+        >
+          Go Up
+        </button>
+        <ul className="settings-folder-list">
           {folders.map((folder, index) => (
-            <li key={index} style={{ display: "flex", alignItems: "center" }}>
+            <li key={index} className="settings-folder-item">
               <span
-                style={{
-                  cursor: "pointer",
-                  color: "blue",
-                  flex: 1,
-                }}
-                onClick={() => handleFolderClick(folder)} // 폴더 안으로 이동
+                className="settings-folder-name"
+                onClick={() => handleFolderClick(folder)}
               >
-                {"📁"} {folder}
+                📁 {folder}
               </span>
               <button
-                onClick={() => handleFolderSelect(folder)} // 폴더 선택 버튼
-                style={{
-                  marginLeft: "10px",
-                  padding: "5px 10px",
-                  backgroundColor: "#28a745",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "5px",
-                  cursor: "pointer",
-                }}
+                className="settings-select-button"
+                onClick={() => handleFolderSelect(folder)}
               >
                 Select
               </button>
@@ -104,32 +116,41 @@ const Settings: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>Settings</h1>
-      <div>
-        <label>Workspace Directory:</label>
-        <button onClick={handleOpenWorkspace}>Select Directory</button>
-        <p>Selected Directory: {workspace}</p>
+    <div className="settings-container">
+      <h1 className="settings-header">
+        Settings
+        {!isFirst && (
+        <button className="settings-cancel-button" onClick={goMain}>
+          Cancel
+        </button>
+        )}
+      </h1>
+      <div className="settings-input-group">
+        <label className="settings-label">Workspace Directory:</label>
+        <button className="settings-button" onClick={handleOpenWorkspace}>
+          Select Directory
+        </button>
+        <p className="settings-path">Selected Directory: {workspace}</p>
       </div>
-      <label>
-        Enter your group:
+      <div className="settings-input-group">
+        <label className="settings-label">Enter your group:</label>
         <input
           type="text"
           value={group}
           onChange={(e) => setGroup(e.target.value)}
-          style={{ marginLeft: "10px" }}
+          className="settings-input"
         />
-      </label>
-      <label>
-        Enter your nickname:
+      </div>
+      <div className="settings-input-group">
+        <label className="settings-label">Enter your nickname:</label>
         <input
           type="text"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
-          style={{ marginLeft: "10px" }}
+          className="settings-input"
         />
-      </label>
-      <button onClick={saveSetting} style={{ marginTop: "10px" }}>
+      </div>
+      <button className="settings-save-button" onClick={saveSetting}>
         Save
       </button>
     </div>

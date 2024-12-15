@@ -16,9 +16,13 @@ use tracing_subscriber::EnvFilter;
 static GLOBAL_STATE: LazyLock<Arc<Mutex<bool>>> = LazyLock::new(|| Arc::new(Mutex::new(true)));
 
 #[tauri::command]
-async fn is_first_run(savedir: String, homedir: String) -> bool {
-    kudrive_client::config_loader::is_first_run(PathBuf::from(savedir), PathBuf::from(homedir))
-        .await
+async fn is_first_run() -> bool {
+    config_loader::is_first_run().await
+}
+
+#[tauri::command]
+async fn set_config_path(savedir: String, homedir: String) {
+    config_loader::set_config_path(PathBuf::from(savedir), PathBuf::from(homedir)).await;
 }
 
 #[tauri::command]
@@ -45,7 +49,10 @@ fn get_workspace() -> String {
 #[tauri::command]
 async fn get_clients() -> Result<Vec<String>, String> {
     if let Ok(clients) = clients().await {
-        Ok(clients.iter().map(|client| client.nickname.clone()).collect())
+        Ok(clients
+            .iter()
+            .map(|client| client.nickname.clone())
+            .collect())
     } else {
         Err("Failed to get clients".to_string())
     }
@@ -98,7 +105,10 @@ fn get_files(path: String) -> DirectoryContents {
 }
 
 #[tauri::command]
-async fn get_filemap() -> (HashMap<String, Vec<String>>, Vec<((String, String), String)>) {
+async fn get_filemap() -> (
+    HashMap<String, Vec<String>>,
+    Vec<((String, String), String)>,
+) {
     let client_data = clients().await;
 
     let mut map = HashMap::new();
@@ -117,7 +127,10 @@ async fn get_filemap() -> (HashMap<String, Vec<String>>, Vec<((String, String), 
                 }
 
                 map.insert(client.id.to_string().clone(), file_vec);
-                id_map.push(((client.nickname.clone(), client.id.clone().to_string()), client.files.os.name));
+                id_map.push((
+                    (client.nickname.clone(), client.id.clone().to_string()),
+                    client.files.os.name,
+                ));
             }
             (map, id_map)
         }
@@ -129,7 +142,10 @@ async fn get_filemap() -> (HashMap<String, Vec<String>>, Vec<((String, String), 
 }
 
 #[tauri::command]
-async fn get_foldermap() -> (HashMap<String, Vec<String>>, Vec<((String, String), String)>) {
+async fn get_foldermap() -> (
+    HashMap<String, Vec<String>>,
+    Vec<((String, String), String)>,
+) {
     let client_data = clients().await;
 
     let mut map = HashMap::new();
@@ -150,7 +166,10 @@ async fn get_foldermap() -> (HashMap<String, Vec<String>>, Vec<((String, String)
 
                 let key = client.id.clone().to_string();
                 map.insert(key, folder_vec);
-                id_map.push(((client.nickname.clone(), client.id.clone().to_string()), client.files.os.name));
+                id_map.push((
+                    (client.nickname.clone(), client.id.clone().to_string()),
+                    client.files.os.name,
+                ));
             }
 
             println!("{:?}", map);
@@ -189,6 +208,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
+            set_config_path,
             is_first_run,
             init_config,
             get_nickname,
