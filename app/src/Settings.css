@@ -1,0 +1,138 @@
+.settings-container {
+    padding: 20px;
+    font-family: 'Roboto', sans-serif;
+    background-color: #f7f9fc;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    max-width: 600px;
+    margin: 50px auto;
+  }
+  
+  .settings-header {
+    font-size: 24px;
+    margin-bottom: 20px;
+    color: #333;
+  }
+  
+  .settings-input-group {
+    margin-bottom: 20px;
+  }
+  
+  .settings-label {
+    display: block;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: #555;
+  }
+  
+  .settings-input {
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+  }
+  
+  .settings-button {
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .settings-button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+  
+  .settings-path {
+    font-size: 14px;
+    margin-top: 10px;
+    color: #555;
+  }
+  
+  .settings-save-button {
+    margin-top: 20px;
+    width: 100%;
+    padding: 12px;
+    font-size: 18px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .settings-folder-list {
+    list-style-type: none;
+    padding: 0;
+    margin-top: 20px;
+  }
+  
+  .settings-folder-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    margin-bottom: 10px;
+  }
+  
+  .settings-folder-name {
+    font-size: 16px;
+    color: #007bff;
+    cursor: pointer;
+  }
+  
+  .settings-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .settings-cancel-button {
+    position: absolute;
+    right: 0; 
+    top: 50%;
+    transform: translateY(-50%);
+    margin-top: 20px;
+    padding: 5px 10px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .settings-cancel-button:hover,
+  .settings-button:hover,
+  .settings-cancel-button:hover {
+    background-color: #a80000;
+  }
+
+  .settings-select-button {
+    padding: 5px 10px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+    
+
+  .settings-select-button:hover,
+  .settings-button:hover,
+  .settings-save-button:hover {
+    background-color: #0056b3;
+  }
+  
