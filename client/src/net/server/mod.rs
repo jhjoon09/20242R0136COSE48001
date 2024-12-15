@@ -10,6 +10,7 @@ use tokio::sync::Mutex;
 
 use crate::config_loader::{get_group_id, get_nickname, get_server_address, get_uuid};
 use crate::event::ClientEvent;
+use crate::file_server::get_resolved_filemap;
 
 pub struct Server {
     stream: Option<Arc<Mutex<TcpStream>>>,
@@ -49,13 +50,7 @@ impl Server {
             group: get_group_id(),
             id: get_uuid(),
             nickname: get_nickname(),
-            files: FileMap {
-                os: kudrive_common::fs::OS {
-                    name: std::env::consts::OS.to_string(),
-                },
-                files: vec![],
-                folders: vec![],
-            },
+            files: get_resolved_filemap(),
         };
 
         let message = ClientMessage::Register { client };

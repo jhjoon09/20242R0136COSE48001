@@ -20,6 +20,21 @@
   padding: 0.5rem 0;
 }
 
+.app-fixed {
+  z-index: 100;
+  position: fixed;
+  left: env(safe-area-inset-left);
+  right: env(safe-area-inset-right);
+  top: env(safe-area-inset-top);
+  bottom: env(safe-area-inset-bottom);
+}
+
+@supports (-webkit-touch-callout: none) {
+  .app-fixed {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
 .folder-item {
   width: 100%;
 }
@@ -65,4 +80,19 @@
   .list-item .text {
     color: #f2f5f9;
   }
+}
+
+.modal-container {
+  position: fixed;
+  inset: 0; /* Shortcut for top, right, bottom, left: 0 */
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000; /* Ensure above everything else */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }

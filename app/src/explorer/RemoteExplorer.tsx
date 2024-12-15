@@ -130,6 +130,7 @@ interface DownloadModalProps {
   onFileNameChange: (name: string) => void;
   fileNameError: string;
   deviceName: string;
+  isLoading: boolean;
 }
 
 const DownloadModal: React.FC<DownloadModalProps> = ({
@@ -141,11 +142,12 @@ const DownloadModal: React.FC<DownloadModalProps> = ({
   onFileNameChange,
   fileNameError,
   deviceName,
+  isLoading,
 }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+    <div className="modal-container fixed app-fixed z-index-100 inset-0 bg-black bg-opacity-50 flex items-center justify-center">
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl min-w-[400px]">
         <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
           {deviceName}으로 다운로드
@@ -196,19 +198,47 @@ const DownloadModal: React.FC<DownloadModalProps> = ({
         <div className="flex justify-end gap-2 mt-6">
           <button
             onClick={onClose}
+            disabled={isLoading}
             className="px-4 py-2 text-gray-600 hover:text-gray-700 
-              dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
+              dark:text-gray-400 dark:hover:text-gray-300 transition-colors
+              disabled:opacity-50 disabled:cursor-not-allowed"
           >
             취소
           </button>
           <button
             onClick={onConfirm}
-            disabled={!savePath || !saveFileName}
-            className="px-4 py-2 bg-blue-500 text-white rounded 
-              hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700
+            disabled={!savePath || !saveFileName || isLoading}
+            className="px-4 py-2 bg-[#862633] hover:bg-[#a62f3f] 
+              text-white rounded flex items-center gap-2
               disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            확인
+            {isLoading ? (
+              <>
+                <svg
+                  className="animate-spin h-5 w-5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                다운로드 중...
+              </>
+            ) : (
+              '확인'
+            )}
           </button>
         </div>
       </div>
@@ -252,6 +282,8 @@ const RemoteExplorer: React.FC<RemoteExplorerProps> = ({
   const [saveFileName, setSaveFileName] = useState<string>('');
   const [fileNameError, setFileNameError] = useState<string>('');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const getWorkspace = async () => {
@@ -267,12 +299,20 @@ const RemoteExplorer: React.FC<RemoteExplorerProps> = ({
     }
   }, [selectedPath]);
 
-  const handleFileSelect = (path: string | null) => {
+  const handleFileDeselect = (path: string | null) => {
     if (!path) {
-      setSelectedPath(null);
-      return;
+      setIsExiting(true);
+      setTimeout(() => {
+        setSelectedPath(null);
+        setIsExiting(false);
+      }, 300);
+    } else {
+      setSelectedPath(path);
     }
-    setSelectedPath(path);
+  };
+
+  const handleFileSelect = (path: string | null) => {
+    handleFileDeselect(path);
   };
 
   const handleDownload = async () => {
@@ -298,20 +338,22 @@ const RemoteExplorer: React.FC<RemoteExplorerProps> = ({
   const confirmDownload = async () => {
     if (!savePath || !saveFileName) return;
 
-    const exists = await checkFileExists(saveFileName);
-
-    if (exists) {
-      setFileNameError('이미 같은 이름의 파일이 존재합니다');
-      return;
-    }
-    console.log('File name verified');
-
     try {
+      setIsLoading(true);
+      const exists = await checkFileExists(saveFileName);
+
+      if (exists) {
+        setFileNameError('이미 같은 이름의 파일이 존재합니다');
+        setIsLoading(false);
+        return;
+      }
+
       await invoke('recive_file', {
         id: deviceId,
         source: '.' + selectedPath?.substring(4),
         target: `./${saveFileName}`,
       });
+
       setShowModal(false);
       setSelectedPath(null);
       setSavePath('');
@@ -325,6 +367,8 @@ const RemoteExplorer: React.FC<RemoteExplorerProps> = ({
     } catch (error) {
       alert('파일 다운로드 중 에러 발생: ' + error);
       console.error('Error downloading file:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -403,11 +447,11 @@ const RemoteExplorer: React.FC<RemoteExplorerProps> = ({
       {selectedPath && (
         <button
           onClick={handleDownload}
-          className="fixed bottom-8 right-8 bg-blue-500 hover:bg-blue-600 
+          className={`fixed bottom-8 right-8 bg-[#862633] hover:bg-[#a62f3f] 
             text-white px-6 py-3 rounded-full shadow-lg text-lg font-medium
             transition-all duration-300 ease-out transform
-            hover:scale-105 hover:shadow-xl
-            animate-fade-scale-up flex items-center gap-3"
+            hover:scale-105 hover:shadow-xl flex items-center gap-3
+            ${isExiting ? 'animate-slide-down' : 'animate-slide-up'}`}
         >
           <svg
             className="w-6 h-6"
@@ -435,6 +479,7 @@ const RemoteExplorer: React.FC<RemoteExplorerProps> = ({
         onFileNameChange={handleFileNameChange}
         fileNameError={fileNameError}
         deviceName={curDeviceName}
+        isLoading={isLoading}
       />
 
       <SuccessCheck show={showSuccess} />

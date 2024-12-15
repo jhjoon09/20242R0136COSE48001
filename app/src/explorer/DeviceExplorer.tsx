@@ -24,11 +24,13 @@ const DeviceExplorer: React.FC = () => {
       const data = await invoke('get_filemap');
       const [folders, idmap] = data as [
         Record<string, string[]>,
-        [[string, string],string][],
+        [[string, string], string][],
       ];
 
       // 현재의 기기 ID 목록
-      const currentDeviceIds = new Set(idmap.map(([[nickname, _],os]) => nickname));
+      const currentDeviceIds = new Set(
+        idmap.map(([[nickname, _], _os]) => nickname),
+      );
 
       setDevices((prevDevices) => {
         const updatedDevices: Device[] = [];
@@ -41,18 +43,20 @@ const DeviceExplorer: React.FC = () => {
               ...device,
               isOnline: true,
               lastSeen: new Date(),
+              isMyDevice: device.nickname === myDevice?.nickname,
             });
           } else {
             // 오프라인 상태로 업데이트
             updatedDevices.push({
               ...device,
               isOnline: false,
+              isMyDevice: device.nickname === myDevice?.nickname,
             });
           }
         });
 
         // 새로운 기기 추가
-        idmap.forEach(([[nickname, uuid],os]) => {
+        idmap.forEach(([[nickname, uuid], os]) => {
           const isExistingDevice = prevDevices.some(
             (device) => device.nickname === nickname,
           );
@@ -63,7 +67,7 @@ const DeviceExplorer: React.FC = () => {
               nickname,
               os,
               isOnline: true,
-              isMyDevice: false,
+              isMyDevice: nickname === myDevice?.nickname,
               lastSeen: new Date(),
             });
           }
@@ -76,7 +80,7 @@ const DeviceExplorer: React.FC = () => {
     } catch (error) {
       console.error('Error updating devices:', error);
     }
-  }, []);
+  }, [myDevice?.nickname]);
 
   useEffect(() => {
     const initDevices = async () => {
@@ -106,7 +110,7 @@ const DeviceExplorer: React.FC = () => {
     <div className="device-explorer-container flex h-screen bg-gray-100 dark:bg-gray-900">
       {/* 사이드바 */}
       <aside
-        className={`transition-all duration-300 ${
+        className={`transition-all z-10 duration-300 ${
           isSidebarExpanded ? 'w-64' : 'w-20'
         } flex-shrink-0 bg-white dark:bg-gray-800 border-r 
         border-gray-200 dark:border-gray-700`}

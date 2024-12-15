@@ -1,4 +1,5 @@
 import { Device } from './Types';
+import { getOsIcon } from './Types';
 
 interface DeviceListProps {
   devices: Device[];
@@ -13,12 +14,16 @@ const DeviceList: React.FC<DeviceListProps> = ({
   onDeviceSelect,
   isSidebarExpanded,
 }) => {
-  // 온라인/오프라인 기기 분리
-  const onlineDevices = devices.filter((device) => device.isOnline);
-  const offlineDevices = devices.filter((device) => !device.isOnline);
+  // 온라인/오프라인 기기 분리 (내 기기 제외)
+  const onlineDevices = devices.filter(
+    (device) => device.isOnline && !device.isMyDevice,
+  );
+  const offlineDevices = devices.filter(
+    (device) => !device.isOnline && !device.isMyDevice,
+  );
 
   return (
-    <div className="p-2">
+    <div className="z-10 relative p-2">
       {/* 온라인 기기 섹션 */}
       <h3 className="px-2 py-1 text-sm text-gray-500 dark:text-gray-400">
         온라인 기기
@@ -37,13 +42,11 @@ const DeviceList: React.FC<DeviceListProps> = ({
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-gray-400">📱</span>
-                {isSidebarExpanded ? (
+                {getOsIcon(device.os)}
+                {isSidebarExpanded && (
                   <span className="text-gray-700 dark:text-gray-200">
                     {device.nickname}
                   </span>
-                ) : (
-                  ''
                 )}
               </div>
               <span className="w-2 h-2 rounded-full bg-green-500" />
@@ -72,13 +75,11 @@ const DeviceList: React.FC<DeviceListProps> = ({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-gray-400">📱</span>
-                    {isSidebarExpanded ? (
+                    {getOsIcon(device.os)}
+                    {isSidebarExpanded && (
                       <span className="text-gray-700 dark:text-gray-200">
                         {device.nickname}
                       </span>
-                    ) : (
-                      ''
                     )}
                   </div>
                   <span className="w-2 h-2 rounded-full bg-gray-300" />

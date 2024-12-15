@@ -129,11 +129,15 @@ pub async fn set_config(
     workspace: String,
     group_name: String,
     nickname: String,
+    domain: Option<String>,
+    hash: Option<String>,
+    server_port: Option<u16>,
+    p2p_port: Option<u16>,
 ) -> Result<(), String> {
-    let domain = "127.0.0.1".to_string();
-    let server_port = 7878;
-    let p2p_port = 4001;
-    let hash = "12D3KooWA768LzHMatxkjD1f9DrYW375GZJr6MHPCNEdDtHeTNRt".to_string();
+    let domain = domain.unwrap_or("127.0.0.1".to_string());
+    let server_port = server_port.unwrap_or(7878);
+    let p2p_port = p2p_port.unwrap_or(4001);
+    let hash = hash.unwrap_or("12D3KooWA768LzHMatxkjD1f9DrYW375GZJr6MHPCNEdDtHeTNRt".to_string());
 
     let new_config = Config {
         server: ServerConfig {
@@ -179,4 +183,10 @@ pub async fn set_config(
     tracing::info!("Configuration successfully updated!");
 
     Ok(())
+}
+
+pub fn get_current_config() -> Result<&'static Config, String> {
+    CONFIG
+        .get()
+        .ok_or_else(|| "설정이 초기화되지 않았습니다".to_string())
 }
