@@ -17,7 +17,7 @@ pub struct Folder {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileMap {
-    pub os : OS,
+    pub os: OS,
     pub files: Vec<File>,
     pub folders: Vec<Folder>,
 }

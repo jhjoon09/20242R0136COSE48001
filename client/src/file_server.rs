@@ -1,6 +1,6 @@
 use crate::config_loader::{get_home_dir, get_ignore_list, get_refresh_time, get_workspace};
 use crate::event::ClientEvent;
-use kudrive_common::fs::{OS, File, FileMap, Folder};
+use kudrive_common::fs::{File, FileMap, Folder, OS};
 use notify::{Event, RecommendedWatcher, RecursiveMode, Result, Watcher};
 use regex::Regex;
 use std::path::{Path, PathBuf};
@@ -29,7 +29,9 @@ fn remove_home(path: String) -> String {
 fn get_files(path: String) -> FileMap {
     let path_name = resolve_path(path);
 
-    let os = OS { name: std::env::consts::OS.to_string() };
+    let os = OS {
+        name: std::env::consts::OS.to_string(),
+    };
     let mut files = Vec::new();
     let mut folders = Vec::new();
 
@@ -62,7 +64,9 @@ fn get_files(path: String) -> FileMap {
 }
 
 fn get_filemap(path: String) -> FileMap {
-    let os =  OS { name: std::env::consts::OS.to_string() };
+    let os = OS {
+        name: std::env::consts::OS.to_string(),
+    };
     let mut all_files = Vec::new();
     let mut all_folders = Vec::new();
     let current = get_files(path.clone());
@@ -95,7 +99,9 @@ fn check_exclude(path: &PathBuf, patterns: &[Regex]) -> bool {
 pub fn get_resolved_filemap() -> FileMap {
     let files = get_filemap(get_workspace());
 
-    let os =  OS { name: std::env::consts::OS.to_string() };
+    let os = OS {
+        name: std::env::consts::OS.to_string(),
+    };
 
     let all_files: Vec<File> = files
         .files
@@ -136,9 +142,7 @@ impl FileServer {
     async fn send(responder: Sender<ClientEvent>) {
         let files = get_resolved_filemap();
 
-        let event = ClientEvent::FileMapUpdate {
-            file_map: files,
-        };
+        let event = ClientEvent::FileMapUpdate { file_map: files };
 
         // TODO: logics for file map update
         responder.send(event).await.unwrap();
