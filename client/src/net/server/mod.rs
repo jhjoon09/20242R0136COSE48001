@@ -50,6 +50,7 @@ impl Server {
             id: get_uuid(),
             nickname: get_nickname(),
             files: FileMap {
+                os : kudrive_common::fs::OS { name: std::env::consts::OS.to_string() },
                 files: vec![],
                 folders: vec![],
             },

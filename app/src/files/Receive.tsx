@@ -73,7 +73,7 @@ const FileNodeComponent: React.FC<{
 };
 
 const Receive: React.FC = () => {
-  const [idMap, setIdMap] = useState<Record<string, string>>({});
+  const [idMap, setIdMap] = useState<Record<string, [string,string]>>({});
   const [fileMap, setFileMap] = useState<Record<string, string[]> | null>(null);
   const [selectedId, setSelectedId] = useState<string>("");
   const [openState, setOpenState] = useState<Record<string, boolean>>({});
@@ -84,12 +84,12 @@ const Receive: React.FC = () => {
     const fetchFiles = async () => {
       try {
         const data = await invoke("get_filemap"); // Rust 함수 호출
-        const [files, idmap] = data as [Record<string, string[]>, [string,string][]]
-        setFileMap(files as Record<string, string[]>);
+        const [files, idmap] = data as [Record<string, string[]>, [[string,string],string][]]
+        setFileMap(files);
 
-        const idMapping : Record<string,string> = {};
-        idmap.forEach(([nickname, uuid]) => {
-          idMapping[uuid] = nickname;
+        const idMapping : Record<string,[string,string]> = {};
+        idmap.forEach(([[nickname, uuid],os]) => {
+          idMapping[uuid] = [nickname,os];
         });
 
         setIdMap(idMapping);
@@ -135,7 +135,7 @@ const Receive: React.FC = () => {
         <ul>
           {Object.keys(idMap).map((uuid) => (
             <li key={uuid} onClick={() => handleIdSelect(uuid)} style={{ cursor: "pointer" }}>
-              {idMap[uuid]}
+              {idMap[uuid][0]} ({idMap[uuid][1]})
             </li>
           ))}
         </ul>
