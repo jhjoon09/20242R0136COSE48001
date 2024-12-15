@@ -12,9 +12,24 @@ function MainPage() {
   const [workspace, setWorkspace] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const navigate = useNavigate();
-
+  
 
   useEffect(() => {
+
+    async function is_first(){
+      try{
+        const savedir = await appConfigDir();
+        const homedir = await homeDir();
+        await invoke("set_config_path", {savedir, homedir});
+        const is_first_run = await invoke<boolean>("is_first_run");
+        if (is_first_run) {
+          navigate("/settings", {replace: true});
+          return;
+        }
+      } catch (error) {
+        console.error("Error fetching init:", error);
+      }  
+    }
     async function greet() {
       try {
         const nickname = await invoke<String>("get_nickname");
@@ -28,6 +43,7 @@ function MainPage() {
 
     async function init() {
       try {
+        await invoke("load_config");
         await invoke("init_client");   
         await greet();
         setIsConnected(true);
@@ -36,7 +52,12 @@ function MainPage() {
       }
     }
 
-    init();
+    const runEffects = async () => {
+      await is_first();    
+      init();
+    };
+
+    runEffects();
   }, [navigate]);
 
   return (
@@ -48,6 +69,12 @@ function MainPage() {
       <h2>{isConnected ? "Connected" : "Connecting to Server"}</h2>
     </div>
     <div className="button-group">
+    <button
+      onClick={() => navigate('/settings', {replace: true})}
+      className="button blue"
+    >
+        Go to Settings
+      </button>
     {isConnected && (
     <button
       onClick={() => navigate('/device-explorer')}
@@ -115,8 +142,7 @@ function Init() {
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<Init />} />
-      <Route path="/main" element={<MainPage />} />
+      <Route path="/" element={<MainPage />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="/device-explorer" element={<DeviceExplorer />} />
     </Routes>

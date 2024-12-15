@@ -61,8 +61,7 @@ const Settings: React.FC = () => {
   };
 
   const goMain = async () => {
-    await invoke("load_config");
-    navigate("/main", { replace: true });
+    navigate("/", { replace: true });
   }
 
   // 설정 저장
@@ -73,8 +72,10 @@ const Settings: React.FC = () => {
         group: group,
         nickname: nickname,
       });
-      await invoke("load_config");
-      navigate("/main", { replace: true });
+      navigate("/", { replace: true });
+      if(!isFirst){
+        alert("설정을 적용하기 위해서는 재시작이 필요합니다!");
+      }
     } catch (error) {
       console.error("Error saving:", error);
       alert("Failed to save. Try again.");
