@@ -11,6 +11,35 @@
     -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
   }
+
+  @media (prefers-color-scheme: dark) {
+    body {
+      background-color: #111827; /* gray-900 */
+      color: #f3f4f6; /* gray-100 */
+    }
+  }
+
+  body {
+    background-color: #ffffff;
+    min-height: 100vh;
+    overscroll-behavior: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    body {
+      background-color: #1f2937;
+    }
+  }
+
+  html {
+    background-color: #ffffff;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    html {
+      background-color: #111827;
+    }
+  }
 }
 
 h1 {
@@ -27,29 +56,32 @@ h2 {
 
 .button {
   cursor: pointer;
-  font-size: 16px;
-  padding: 10px 20px;
-  border-radius: 5px;
+  font-size: 1.125rem;
+  padding: 1rem 2rem;
+  border-radius: 0.5rem;
   border: none;
-  transition: background-color 0.3s, transform 0.2s;
-  
-  width: 150px;
-  height: 50px; 
-
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  transition: all 0.2s;
+  min-width: 20rem;
+  height: auto;
 }
 
-
 .button:hover {
-  transform: scale(1.05);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 12px rgba(0, 0, 0, 0.15);
+}
+
+.button:active {
+  transform: translateY(0);
 }
 
 /* 색상별 버튼 스타일 */
 .button.green {
-  background-color: #4caf50;
+  background-color: #862633;
   color: white;
+}
+
+.button.green:hover {
+  background-color: #6e1f2a;
 }
 
 .button.blue {
@@ -59,11 +91,10 @@ h2 {
 
 .button-group {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  gap: 15px;
-  margin-bottom: 20px;
-  height: 100%;
+  gap: 1rem;
+  margin: 2rem 0;
 }
 
 .main,
@@ -81,19 +112,18 @@ h2 {
 /* 컨테이너 스타일 */
 .main-container,
 .init-container {
-  text-align: center;
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  text-align: left;
+  padding: 0;
+  border-radius: 1rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   background-color: white;
   width: 90%;
   max-width: 600px;
 }
 
 .main-content {
-  margin: 20px 0;
+  margin: 0;
 }
-
 
 /* .logo.vite:hover {
   filter: drop-shadow(0 0 2em #747bff);

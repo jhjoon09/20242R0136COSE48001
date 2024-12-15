@@ -12,6 +12,7 @@ use kudrive_client::file_server::resolve_path;
 use kudrive_client::init as client_init;
 use kudrive_client::{clients, file_receive, file_send};
 use tracing_subscriber::EnvFilter;
+use serde::Serialize;
 
 static GLOBAL_STATE: LazyLock<Arc<Mutex<bool>>> = LazyLock::new(|| Arc::new(Mutex::new(true)));
 
@@ -26,9 +27,17 @@ async fn set_config_path(savedir: String, homedir: String) {
 }
 
 #[tauri::command]
-async fn init_config(workspace: String, group: String, nickname: String) -> Result<(), String> {
+async fn init_config(
+    workspace: String,
+    group: String,
+    nickname: String,
+    domain: Option<String>,
+    hash: Option<String>,
+    server_port: Option<u16>,
+    p2p_port: Option<u16>,
+) -> Result<(), String> {
     let workspace = resolve_path(workspace);
-    set_config(workspace, group, nickname).await
+    set_config(workspace, group, nickname, domain, hash, server_port, p2p_port).await
 }
 
 #[tauri::command]
@@ -198,6 +207,27 @@ async fn recive_file(id: Uuid, source: String, target: String) -> Result<(), Str
     file_receive(id, source, target).await
 }
 
+#[derive(Serialize)]
+struct CurrentConfig {
+    domain: String,
+    hash: String,
+    server_port: u16,
+    p2p_port: u16,
+}
+
+#[tauri::command]
+fn get_current_config() -> Result<CurrentConfig, String> {
+    let config = config_loader::get_current_config()
+        .map_err(|e| format!("설정을 불러오는데 실패했습니다: {}", e))?;
+        
+    Ok(CurrentConfig {
+        domain: config.server.domain.clone(),
+        hash: config.server.hash.clone(),
+        server_port: config.server.server_port,
+        p2p_port: config.server.p2p_port,
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = tracing_subscriber::fmt()
@@ -220,7 +250,8 @@ pub fn run() {
             send_file,
             recive_file,
             get_workspace,
-            get_clients
+            get_clients,
+            get_current_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

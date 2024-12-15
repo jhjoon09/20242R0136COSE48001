@@ -1,19 +1,15 @@
-import {
-  VscChevronDown,
-  VscChevronRight,
-  VscChevronUp,
-  VscFile,
-} from 'react-icons/vsc'; // VS Code 스타일
+import { VscChevronDown, VscChevronRight, VscFile } from 'react-icons/vsc'; // VS Code 스타일
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import './Explorer.css';
 import { Device, DirectoryContents } from './Types';
+import NavigationButtons from './components/NavigationButtons';
 
 interface FolderItemProps {
   name: string;
   path: string;
   depth: number;
-  onFileSelect?: (path: string) => void;
+  onFileSelect?: (path: string | null) => void;
   selectedFile: string | null;
 }
 
@@ -117,7 +113,7 @@ const FolderItem: React.FC<FolderItemProps> = ({
 };
 
 interface FileExplorerProps {
-  onFileSelect?: (filePath: string) => void;
+  onFileSelect?: (filePath: string | null) => void;
   devices: Device[];
   myDeviceId: string | null;
 }
@@ -164,7 +160,7 @@ const UploadModal: React.FC<UploadModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1001]">
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl min-w-[400px]">
         <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
           파일 업로드
@@ -229,8 +225,8 @@ const UploadModal: React.FC<UploadModalProps> = ({
           </button>
           <button
             onClick={handleConfirm}
-            className="px-4 py-2 bg-blue-500 text-white rounded 
-              hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700
+            className="px-4 py-2 bg-[#862633] hover:bg-[#a62f3f]  text-white rounded 
+              dark:bg-[#862633] dark:hover:bg-[#a62f3f] 
               transition-colors"
           >
             확인
@@ -276,6 +272,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isPathExpanded, setIsPathExpanded] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
 
   const fetchFiles = async (path: string) => {
     try {
@@ -335,50 +333,66 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
     }
   };
 
+  const truncatePath = (path: string) => {
+    if (!isPathExpanded && path.length > 20) {
+      return path.substring(0, 15) + '...' + path.substring(path.length - 5);
+    }
+    return path;
+  };
+
+  const openUploadModal = () => {
+    setShowUploadModal(true);
+  };
+
+  const handleFileDeselect = () => {
+    setIsExiting(true);
+    setTimeout(() => {
+      setSelectedFile(null);
+      setIsExiting(false);
+    }, 300);
+  };
+
   return (
     <div className="file-explorer relative h-full">
       <div className="file-explorer-header">
-        <div className="flex-1">
-          <h2 className="text-lg font-semibold">파일 탐색기</h2>
-          <p className="text-sm">현재 경로: {currentPath}</p>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg font-semibold dark:text-white">파일 탐색기</h2>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {isPathExpanded ? (
+                  <span className="break-all">{currentPath}</span>
+                ) : (
+                  <span className="truncate">{truncatePath(currentPath)}</span>
+                )}
+              </p>
+              {currentPath.length > 20 && (
+                <button
+                  onClick={() => setIsPathExpanded(!isPathExpanded)}
+                  className="text-xs text-[#862633] hover:text-[#a62f3f] underline shrink-0 
+                    transition-colors inline-flex items-center gap-1 self-start"
+                >
+                  {isPathExpanded ? '접기' : '더보기'}
+                  <svg
+                    className={`w-4 h-4 transition-transform ${
+                      isPathExpanded ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-        <>
-          <button
-            onClick={goToWorkspace}
-            className="p-2 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 
-                hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-              />
-            </svg>
-          </button>
-          <div className="hidden md:block w-4"></div>
-          <button
-            onClick={() =>
-              fetchFiles(currentPath.split('/').slice(0, -1).join('/') || '~')
-            }
-            disabled={currentPath === '~'}
-            className={`p-2 rounded-md bg-gray-50 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors
-                ${
-                  currentPath === '~'
-                    ? 'text-gray-400 cursor-not-allowed'
-                    : 'text-gray-600'
-                }`}
-          >
-            <VscChevronUp className="w-5 h-5 dark:text-gray-300 " />
-          </button>
-        </>
       </div>
 
       <div className="file-list">
@@ -388,7 +402,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
             name={folder}
             path={`${currentPath}/${folder}`}
             depth={0}
-            onFileSelect={(path) => {
+            onFileSelect={(path: string | null) => {
               setSelectedFile(path);
               onFileSelect?.(path);
             }}
@@ -424,8 +438,13 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                setSelectedFile(filePath);
-                onFileSelect?.(filePath);
+                if (selectedFile === filePath) {
+                  handleFileDeselect();
+                  onFileSelect?.(null);
+                } else {
+                  setSelectedFile(filePath);
+                  onFileSelect?.(filePath);
+                }
               }}
             >
               <VscFile className="w-4 h-4 flex-shrink-0" />
@@ -435,14 +454,23 @@ const FileExplorer: React.FC<FileExplorerProps> = ({
         })}
       </div>
 
+      <NavigationButtons
+        onWorkspaceClick={goToWorkspace}
+        onUpClick={() =>
+          fetchFiles(currentPath.split('/').slice(0, -1).join('/') || '~')
+        }
+        isUpDisabled={currentPath === '~'}
+        showUploadButton={!!selectedFile}
+      />
+
       {selectedFile && (
         <button
-          onClick={() => setShowUploadModal(true)}
-          className="fixed bottom-8 right-8 bg-blue-500 hover:bg-blue-600 
+          onClick={openUploadModal}
+          className={`fixed bottom-8 right-8 bg-[#862633] hover:bg-[#a62f3f] 
             text-white px-6 py-3 rounded-full shadow-lg text-lg font-medium
             transition-all duration-300 ease-out transform
-            hover:scale-105 hover:shadow-xl
-            animate-fade-scale-up flex items-center gap-3"
+            hover:scale-105 hover:shadow-xl flex items-center gap-3
+            ${isExiting ? 'animate-slide-down' : 'animate-slide-up'}`}
         >
           <svg
             className="w-6 h-6"
