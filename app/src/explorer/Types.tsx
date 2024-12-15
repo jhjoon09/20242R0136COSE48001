@@ -1,6 +1,7 @@
 export interface Device {
   id: string;
   nickname: string;
+  os: string;
   isOnline: boolean;
   isMyDevice?: boolean;
   lastSeen?: Date;

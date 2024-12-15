@@ -24,11 +24,11 @@ const DeviceExplorer: React.FC = () => {
       const data = await invoke('get_filemap');
       const [folders, idmap] = data as [
         Record<string, string[]>,
-        [string, string][],
+        [[string, string],string][],
       ];
 
       // 현재의 기기 ID 목록
-      const currentDeviceIds = new Set(idmap.map(([nickname, _]) => nickname));
+      const currentDeviceIds = new Set(idmap.map(([[nickname, _],os]) => nickname));
 
       setDevices((prevDevices) => {
         const updatedDevices: Device[] = [];
@@ -52,7 +52,7 @@ const DeviceExplorer: React.FC = () => {
         });
 
         // 새로운 기기 추가
-        idmap.forEach(([nickname, uuid]) => {
+        idmap.forEach(([[nickname, uuid],os]) => {
           const isExistingDevice = prevDevices.some(
             (device) => device.nickname === nickname,
           );
@@ -61,6 +61,7 @@ const DeviceExplorer: React.FC = () => {
             updatedDevices.push({
               id: uuid,
               nickname,
+              os,
               isOnline: true,
               isMyDevice: false,
               lastSeen: new Date(),
@@ -84,6 +85,7 @@ const DeviceExplorer: React.FC = () => {
         setMyDevice({
           id: '',
           nickname,
+          os: '',
           isOnline: true,
           isMyDevice: true,
           lastSeen: new Date(),
