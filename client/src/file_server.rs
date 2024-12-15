@@ -157,7 +157,7 @@ impl FileServer {
                 .iter()
                 .map(|pattern| Regex::new(pattern).unwrap())
                 .collect::<Vec<Regex>>();
-            let delay_time = get_refresh_time as u128;
+            let delay_time = get_refresh_time() as u128;
 
             let (tx, rx) = mpsc::channel::<Result<Event>>();
             let mut watcher: RecommendedWatcher =
