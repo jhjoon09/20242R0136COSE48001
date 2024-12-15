@@ -79,7 +79,7 @@ const FolderNodeComponent: React.FC<{
 
 const Dest: React.FC = () => {
   const [folderMap, setFolderMap] = useState<Record<string, string[]> | null>(null);
-  const [idMap, setIdMap] = useState<Record<string,string>>({});
+  const [idMap, setIdMap] = useState<Record<string,[string,string]>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [openState, setOpenState] = useState<Record<string, boolean>>({});
@@ -93,11 +93,11 @@ const Dest: React.FC = () => {
     const fetchDestinations = async () => {
       try {
         const data = await invoke("get_foldermap"); // Call the Tauri command to fetch folder data
-        const [folders, idmap] = data as [Record<string, string[]>, [string,string][]]
-        setFolderMap(folders as Record<string, string[]>); // Set the fetched folder data
-        const idMapping : Record<string,string> = {};
-        idmap.forEach(([nickname, uuid]) => {
-          idMapping[uuid] = nickname;
+        const [folders, idmap] = data as [Record<string, string[]>, [[string,string],string][]]
+        setFolderMap(folders); // Set the fetched folder data
+        const idMapping : Record<string,[string,string]> = {};
+        idmap.forEach(([[nickname, uuid],os]) => {
+          idMapping[uuid] = [nickname,os];
         });
 
         setIdMap(idMapping);
@@ -159,7 +159,7 @@ const Dest: React.FC = () => {
         <ul>
           {Object.keys(idMap).map((uuid) => (
             <li key={uuid} onClick={() => handleIdSelect(uuid)} style={{ cursor: "pointer" }}>
-              {idMap[uuid]}
+              {idMap[uuid][0]} ({idMap[uuid][1]})
             </li>
           ))}
         </ul>
