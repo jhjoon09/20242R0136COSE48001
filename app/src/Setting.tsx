@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
-import HomeButton from "./component/HomeButton";
 
 interface DirectoryContents {
   folders: string[];
@@ -55,12 +54,9 @@ const Settings: React.FC = () => {
   // 설정 저장
   const saveSetting = async () => {
     try {
-      console.log("Saving setting...");
-      console.log("nickname: ", nickname);
-      console.log("workspace: ", workspace);
       await invoke("init_config", { workspace: workspace, group : group, nickname :nickname });
-      alert("Config saved!");
-      navigate("/");
+      await invoke("load_config");
+      navigate("/main", {replace: true});
     } catch (error) {
       console.error("Error saving:", error);
       alert("Failed to save. Try again.");
@@ -109,7 +105,6 @@ const Settings: React.FC = () => {
 
   return (
     <div style={{ padding: "20px" }}>
-      <HomeButton />
       <h1>Settings</h1>
       <div>
         <label>Workspace Directory:</label>
