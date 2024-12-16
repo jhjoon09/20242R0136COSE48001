@@ -1,5 +1,9 @@
 # KU Drive
 
+## Project Documentation
+
+### [Project Report](./docs/report.pdf)
+
 ## Project Structure
 
 ```
